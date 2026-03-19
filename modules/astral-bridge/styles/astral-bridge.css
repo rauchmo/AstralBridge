@@ -1,0 +1,92 @@
+.ddb-roll-flavor {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 0;
+  border-left: 3px solid #888;
+  padding-left: 6px;
+}
+
+/* Roll type accent colors */
+.ddb-type-attack  { border-color: #c0392b; }
+.ddb-type-damage  { border-color: #e67e22; }
+.ddb-type-save    { border-color: #2980b9; }
+.ddb-type-check   { border-color: #27ae60; }
+.ddb-type-initiative { border-color: #8e44ad; }
+.ddb-type-other   { border-color: #7f8c8d; }
+
+.ddb-roll-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.ddb-roll-label {
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+.ddb-badges {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ddb-badge {
+  font-size: 0.65em;
+  background: #922b21;
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: bold;
+  letter-spacing: 0.03em;
+  opacity: 0.9;
+}
+
+.ddb-crit-badge {
+  font-size: 0.7em;
+  background: #f39c12;
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  animation: ddb-crit-glow 1s ease-in-out infinite alternate;
+}
+
+@keyframes ddb-crit-glow {
+  from { box-shadow: 0 0 3px #f39c12; }
+  to   { box-shadow: 0 0 8px #e74c3c; }
+}
+
+.ddb-spell-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+
+.ddb-spell-tag {
+  font-size: 0.72em;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 3px;
+  padding: 1px 5px;
+  opacity: 0.85;
+}
+
+.ddb-spell-desc {
+  font-size: 0.8em;
+  font-style: italic;
+  opacity: 0.55;
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
+.ddb-roll-breakdown {
+  font-size: 0.82em;
+  opacity: 0.65;
+  font-style: italic;
+}

@@ -1,0 +1,17 @@
+{
+  "id": "astral-bridge",
+  "title": "AstralBridge",
+  "description": "Receives dice rolls from D&D Beyond via a local WebSocket bridge and posts them in FoundryVTT as native rolls.",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "12",
+    "verified": "13"
+  },
+  "esmodules": ["scripts/main.js"],
+  "styles": ["styles/ddb-roll-bridge.css"],
+  "authors": [
+    {
+      "name": "Krapfal"
+    }
+  ]
+}
