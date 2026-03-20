@@ -216,6 +216,13 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean,
     default: true,
   });
+
+  game.settings.register(MODULE_ID, "floatingNumbers", {
+    name: "Floating Damage / Heal Numbers",
+    hint: "Show floating numbers on tokens when damage or healing is applied. Requires the Sequencer module.",
+    scope: "world", config: true, type: Boolean,
+    default: true,
+  });
 });
 
 // ---------- Bridge Connection ----------
@@ -319,6 +326,33 @@ async function pickTarget(character, total, isCrit) {
 }
 
 // ---------- Automated Animations ----------
+
+async function showFloatingNumbers(results, isHeal = false, isCrit = false) {
+  if (!game.settings.get(MODULE_ID, "floatingNumbers")) return;
+  if (!game.modules.get("sequencer")?.active) return;
+  if (!results?.length) return;
+
+  for (const r of results) {
+    const token = (canvas.tokens?.placeables ?? []).find(t => t.id === r.tokenId);
+    if (!token) continue;
+
+    const amount = isHeal ? r.healed : r.damage;
+    const text   = isHeal ? `+${amount}` : `-${amount}`;
+    const color  = isHeal ? "#56d364" : (isCrit ? "#e3b341" : "#f85149");
+
+    new Sequence()
+      .scrollingText(token, text, {
+        duration:        1800,
+        distance:        120,
+        fontSize:        isCrit ? 64 : 48,
+        color,
+        stroke:          "#000000",
+        strokeThickness: 4,
+        jitter:          0.2,
+      })
+      .play();
+  }
+}
 
 async function triggerAutoAnimations(character, action, targetTokens) {
   if (!game.settings.get(MODULE_ID, "autoAnimations")) return;
@@ -606,6 +640,10 @@ async function handleRoll(data) {
     triggerAutoAnimations(character, action, tokens).catch(console.warn);
   }
 
+  // Floating numbers for damage and heals
+  if (damageResults) showFloatingNumbers(damageResults, false, crit).catch(console.warn);
+  if (healResults)   showFloatingNumbers(healResults,   true,  false).catch(console.warn);
+
   const targetLog = targetResult ? targetResult.map(t => `${t.name}(AC${t.ac})${t.hit ? "HIT" : "MISS"}`).join(", ") : "";
   const dmgLog    = damageResults ? damageResults.map(r => `−${r.damage} to ${r.targetName}`).join(", ") : "";
   const healLog   = healResults   ? healResults.map(r => `+${r.healed} to ${r.targetName}`).join(", ") : "";
@@ -617,10 +655,11 @@ async function handleRoll(data) {
   const speaker = actor ? ChatMessage.getSpeaker({ actor }) : { alias: character };
   const flavor = buildFlavor(label, text, rollType, crit, apiInfo, targetResult, damageResults, healResults, action);
   const rollMode = game.settings.get(MODULE_ID, "rollMode");
-  const showDSN  = game.settings.get(MODULE_ID, "showDiceSoNice");
+  const showDSN = game.settings.get(MODULE_ID, "showDiceSoNice");
 
-  const msgFlags = showDSN ? {} : { "dice-so-nice": { ghost: true } };
-  await roll.toMessage({ speaker, flavor, flags: msgFlags }, { rollMode });
+  if (!showDSN && game.dice3d) game.dice3d.messageHookDisabled = true;
+  await roll.toMessage({ speaker, flavor }, { rollMode });
+  if (!showDSN && game.dice3d) game.dice3d.messageHookDisabled = false;
 }
 
 function buildFlavor(label, text, rollType, isCrit, apiInfo, targetResult = null, damageResults = null, healResults = null, action = "") {
