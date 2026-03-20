@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AstralBridge</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; overflow: hidden; }
 
     body {
       background: #0d1117;
@@ -35,14 +37,48 @@
     .pill.err { background: #3d1a1a; color: #f85149; border: 1px solid #8b1a1a; }
     .pill.dim { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
 
+    /* ---- Tabs ---- */
+    .tabs { display: flex; gap: 2px; margin-left: 20px; }
+    .tab-btn {
+      padding: 4px 14px; border-radius: 4px; border: none; cursor: pointer;
+      font-size: 0.82em; font-weight: 600; background: transparent; color: #8b949e;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab-btn:hover { background: #21262d; color: #c9d1d9; }
+    .tab-btn.active { background: #21262d; color: #f0f6fc; }
+
+    /* ---- Stats view ---- */
+    #view-stats {
+      display: none; flex: 1; overflow-y: auto; padding: 24px;
+      gap: 20px; flex-direction: column;
+    }
+    #view-stats.active { display: flex; }
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+    .stat-card {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 16px; text-align: center;
+    }
+    .stat-card .stat-val { font-size: 2em; font-weight: 700; color: #f0f6fc; line-height: 1.1; }
+    .stat-card .stat-lbl { font-size: 0.75em; color: #8b949e; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .chart-card {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px;
+    }
+    .chart-card h4 { font-size: 0.72em; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px; }
+
     /* ---- Layout ---- */
-    .layout {
-      display: grid;
-      grid-template-columns: 1fr 340px 300px;
+    #view-dashboard {
+      display: none;
+      grid-template-columns: 1fr 340px;
       flex: 1;
       min-height: 0;
     }
-
+    #view-dashboard.active { display: grid; }
+    #view-config {
+      display: none; flex: 1; overflow-y: auto; padding: 24px;
+      flex-direction: column; gap: 16px; max-width: 560px; margin: 0 auto; width: 100%;
+    }
+    #view-config.active { display: flex; }
     /* ---- Panel shared ---- */
     .panel { display: flex; flex-direction: column; border-right: 1px solid #30363d; min-height: 0; }
     .panel-title {
@@ -122,17 +158,22 @@
 
     /* ---- Modal ---- */
     .modal-backdrop {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.7); z-index: 200;
-      align-items: center; justify-content: center;
+      display: none;
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.7); z-index: 9999;
     }
-    .modal-backdrop.open { display: flex; }
+    .modal-backdrop.open { display: block; }
 
     .modal {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
       background: #161b22; border: 1px solid #30363d; border-radius: 8px;
       width: 780px; max-width: 95vw; max-height: 88vh;
-      display: flex; flex-direction: column; overflow: hidden;
+      display: none; flex-direction: column; overflow: hidden;
+      z-index: 10000;
     }
+    .modal.open { display: flex; }
     .modal-header {
       padding: 14px 18px; background: #1c2128; border-bottom: 1px solid #30363d;
       display: flex; justify-content: space-between; align-items: center;
@@ -180,13 +221,57 @@
 <header>
   <span style="font-size:1.3em">🎲</span>
   <h1>AstralBridge</h1>
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" id="tab-stats" onclick="switchTab('stats')">Statistics</button>
+    <button class="tab-btn" id="tab-config" onclick="switchTab('config')">Config</button>
+  </div>
   <div class="status-row">
     <span id="pill-ddb"     class="pill err">DDB: Disconnected</span>
     <span id="pill-foundry" class="pill dim">Foundry: 0 clients</span>
+    <a href="https://github.com/rauchmo/AstralBridge" target="_blank" style="color:#8b949e; font-size:0.85em; text-decoration:none; display:flex; align-items:center; gap:4px;">
+      <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
   </div>
 </header>
 
-<div class="layout">
+<!-- Statistics View -->
+<div id="view-stats">
+  <div class="stat-cards">
+    <div class="stat-card"><div class="stat-val" id="s-total">0</div><div class="stat-lbl">Total Rolls</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-nat20" style="color:#56d364;">0</div><div class="stat-lbl">Nat 20s 🎯</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-nat1"  style="color:#f85149;">0</div><div class="stat-lbl">Nat 1s 💀</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-avg">—</div><div class="stat-lbl">Avg d20 Roll</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-crits" style="color:#e3b341;">0</div><div class="stat-lbl">Crits / Misses</div></div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <h4>Nat 20s &amp; Nat 1s per Character</h4>
+      <canvas id="chart-nat"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Roll Type Distribution</h4>
+      <canvas id="chart-types"></canvas>
+    </div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <h4>d20 Result Distribution</h4>
+      <canvas id="chart-dist"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Average Total per Character</h4>
+      <canvas id="chart-avg"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h4>All Rolls</h4>
+    <div id="stats-roll-list" style="display:flex; flex-direction:column; gap:4px; max-height:340px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="view-dashboard" class="layout active">
 
   <!-- Log panel -->
   <div class="panel">
@@ -210,52 +295,48 @@
     <div id="roll-list"></div>
   </div>
 
-  <!-- Config sidebar -->
-  <div class="sidebar">
+</div><!-- end view-dashboard -->
 
-    <div class="card">
-      <h3>Roll Statistics</h3>
-      <div id="stats-body" style="font-size:0.82em; color:#8b949e;">No rolls yet.</div>
-    </div>
+<!-- Config View -->
+<div id="view-config">
 
-    <div class="card">
-      <h3>Connection</h3>
-      <button class="btn danger" onclick="restartDDB()">↺ Restart DDB Connection</button>
-    </div>
-
-    <div class="card">
-      <h3>Campaign</h3>
-      <div class="form-group">
-        <label>Game ID</label>
-        <div style="display:flex; gap:6px;">
-          <input type="text" id="quick-game-id" placeholder="e.g. 6572636" style="flex:1;">
-          <button class="btn primary" onclick="switchGameId()">Switch</button>
-        </div>
-        <div style="font-size:0.78em; color:#8b949e; margin-top:4px;">
-          Enter your DDB Campaign/Game ID and click Switch to reconnect.
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>D&D Beyond Config</h3>
-      <div class="form-group">
-        <label>Cobalt Session Token <button onclick="togglePw('cobalt-token', this)">Show</button></label>
-        <input type="password" id="cobalt-token" placeholder="eyJ...">
-      </div>
-      <div class="form-group">
-        <label>Game ID</label>
-        <input type="text" id="game-id" placeholder="6572636">
-      </div>
-      <div class="form-group">
-        <label>User ID</label>
-        <input type="text" id="user-id" placeholder="100435237">
-      </div>
-      <button class="btn" onclick="saveConfig(false)">Save</button>
-      <button class="btn primary" onclick="saveConfig(true)">Save &amp; Restart</button>
-    </div>
-
+  <div class="card">
+    <h3>Connection</h3>
+    <button class="btn danger" onclick="restartDDB()">↺ Restart DDB Connection</button>
   </div>
+
+  <div class="card">
+    <h3>Campaign</h3>
+    <div class="form-group">
+      <label>Game ID</label>
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="quick-game-id" placeholder="e.g. 6572636" style="flex:1;">
+        <button class="btn primary small" onclick="switchGameId()">Switch</button>
+      </div>
+      <div style="font-size:0.78em; color:#8b949e; margin-top:4px;">
+        Enter your DDB Campaign/Game ID and click Switch to reconnect.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>D&D Beyond Config</h3>
+    <div class="form-group">
+      <label>Cobalt Session Token <button onclick="togglePw('cobalt-token', this)">Show</button></label>
+      <input type="password" id="cobalt-token" placeholder="eyJ...">
+    </div>
+    <div class="form-group">
+      <label>Game ID</label>
+      <input type="text" id="game-id" placeholder="6572636">
+    </div>
+    <div class="form-group">
+      <label>User ID</label>
+      <input type="text" id="user-id" placeholder="100435237">
+    </div>
+    <button class="btn" onclick="saveConfig(false)">Save</button>
+    <button class="btn primary" onclick="saveConfig(true)">Save &amp; Restart</button>
+  </div>
+
 </div>
 
 <!-- Detail Modal -->
@@ -359,47 +440,118 @@
     return "other";
   }
 
-  function renderStats() {
-    const el = document.getElementById("stats-body");
-    if (!rolls.length) { el.innerHTML = "No rolls yet."; return; }
+  // ---- Tab switching ----
+  let _activeTab = "dashboard";
+  function switchTab(tab) {
+    _activeTab = tab;
+    document.getElementById("view-dashboard").classList.toggle("active", tab === "dashboard");
+    document.getElementById("view-stats").classList.toggle("active",     tab === "stats");
+    document.getElementById("view-config").classList.toggle("active",    tab === "config");
+    document.getElementById("tab-dashboard").classList.toggle("active",  tab === "dashboard");
+    document.getElementById("tab-stats").classList.toggle("active",      tab === "stats");
+    document.getElementById("tab-config").classList.toggle("active",     tab === "config");
+    if (tab === "stats") renderStats();
+  }
 
-    // Per-character aggregation
+  // ---- Charts ----
+  const _charts = {};
+  const CHART_DEFAULTS = {
+    responsive: true,
+    plugins: { legend: { labels: { color: "#8b949e", font: { size: 11 } } } },
+  };
+  Chart.defaults.color = "#8b949e";
+
+  function upsertChart(id, type, data, options = {}) {
+    if (_charts[id]) _charts[id].destroy();
+    _charts[id] = new Chart(document.getElementById(id), {
+      type, data,
+      options: { ...CHART_DEFAULTS, ...options },
+    });
+  }
+
+  function renderStats() {
+    if (!rolls.length) return;
+
+    // Aggregate
     const chars = {};
+    const typeCounts = {};
+    const dist = Array(20).fill(0); // index 0 = roll result 1
+    let totalNat20 = 0, totalNat1 = 0, allTotals = [];
+
     for (const r of rolls) {
       const c = r.character || "Unknown";
       if (!chars[c]) chars[c] = { totals: [], nat20: 0, nat1: 0 };
       const s = chars[c];
-      // Only count d20 rolls for avg/nat tracking
+
+      const rt = (r.rollType || "other").toLowerCase();
+      typeCounts[rt] = (typeCounts[rt] || 0) + 1;
+
       const d20 = (r.dice || []).filter(d => d.faces === 20);
       if (d20.length) {
         s.totals.push(r.total);
-        if (d20.some(d => d.result === 20)) s.nat20++;
-        if (d20.some(d => d.result === 1))  s.nat1++;
+        allTotals.push(r.total);
+        d20.forEach(d => { if (d.result >= 1 && d.result <= 20) dist[d.result - 1]++; });
+        if (d20.some(d => d.result === 20)) { s.nat20++; totalNat20++; }
+        if (d20.some(d => d.result === 1))  { s.nat1++;  totalNat1++;  }
       }
     }
 
-    el.innerHTML = Object.entries(chars).map(([name, s]) => {
-      const avg = s.totals.length ? (s.totals.reduce((a, b) => a + b, 0) / s.totals.length).toFixed(1) : "—";
-      return `<div style="margin-bottom:10px;">
-        <div style="color:#c9d1d9; font-weight:600; margin-bottom:3px;">${esc(name)}</div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <span title="Nat 20s">🎯 ${s.nat20}</span>
-          <span title="Nat 1s">💀 ${s.nat1}</span>
-          <span title="Average d20 total">Ø ${avg}</span>
-          <span title="Total d20 rolls" style="color:#484f58;">${s.totals.length} rolls</span>
-        </div>
-      </div>`;
-    }).join("");
+    const avgAll = allTotals.length ? (allTotals.reduce((a,b)=>a+b,0)/allTotals.length).toFixed(1) : "—";
+    const charNames = Object.keys(chars);
+
+    // Stat cards
+    document.getElementById("s-total").textContent = rolls.length;
+    document.getElementById("s-nat20").textContent = totalNat20;
+    document.getElementById("s-nat1").textContent  = totalNat1;
+    document.getElementById("s-avg").textContent   = avgAll;
+    document.getElementById("s-crits").textContent = `${totalNat20} / ${totalNat1}`;
+
+    // Chart: Nat 20 / Nat 1 per character
+    upsertChart("chart-nat", "bar", {
+      labels: charNames,
+      datasets: [
+        { label: "Nat 20 🎯", data: charNames.map(n => chars[n].nat20), backgroundColor: "#2ea04388", borderColor: "#56d364", borderWidth: 1 },
+        { label: "Nat 1 💀",  data: charNames.map(n => chars[n].nat1),  backgroundColor: "#8b1a1a88", borderColor: "#f85149", borderWidth: 1 },
+      ],
+    }, { scales: { x: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }, y: { ticks: { color: "#8b949e", stepSize: 1 }, grid: { color: "#21262d" }, beginAtZero: true } } });
+
+    // Chart: Roll type donut
+    const typeLabels = Object.keys(typeCounts);
+    const typeColors = { "to hit": "#388bfd", damage: "#f85149", save: "#e3b341", check: "#a371f7", initiative: "#56d364", heal: "#2ea043", other: "#484f58" };
+    upsertChart("chart-types", "doughnut", {
+      labels: typeLabels,
+      datasets: [{ data: typeLabels.map(t => typeCounts[t]), backgroundColor: typeLabels.map(t => typeColors[t] ?? "#484f58"), borderWidth: 0 }],
+    }, { plugins: { legend: { position: "right", labels: { color: "#8b949e", font: { size: 11 } } } } });
+
+    // Chart: d20 distribution
+    upsertChart("chart-dist", "bar", {
+      labels: Array.from({length:20},(_,i)=>i+1),
+      datasets: [{ label: "Rolls", data: dist, backgroundColor: dist.map((_,i) => i===19?"#56d36488":i===0?"#f8514988":"#388bfd55"), borderColor: dist.map((_,i) => i===19?"#56d364":i===0?"#f85149":"#388bfd"), borderWidth: 1 }],
+    }, { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }, y: { ticks: { color: "#8b949e", stepSize: 1 }, grid: { color: "#21262d" }, beginAtZero: true } } });
+
+    // Roll log
+    renderRollList("stats-roll-list");
+
+    // Chart: avg per character
+    upsertChart("chart-avg", "bar", {
+      labels: charNames,
+      datasets: [{ label: "Avg Total", data: charNames.map(n => chars[n].totals.length ? (chars[n].totals.reduce((a,b)=>a+b,0)/chars[n].totals.length).toFixed(1) : 0), backgroundColor: "#388bfd55", borderColor: "#388bfd", borderWidth: 1 }],
+    }, { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } }, y: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" }, beginAtZero: true } } });
   }
 
   function renderRolls() {
-    renderStats();
-    const list = document.getElementById("roll-list");
+    if (_activeTab === "stats") renderStats();
     document.getElementById("roll-count").textContent = `${rolls.length} roll${rolls.length !== 1 ? "s" : ""}`;
+    renderRollList("roll-list");
+  }
+
+  function renderRollList(listId) {
+    const list = document.getElementById(listId);
+    if (!list) return;
     list.innerHTML = rolls.map(r => {
       const tc = rollTypeClass(r.rollType);
       const active = r.id === activeRollId ? " active" : "";
-      return `<div class="roll-item${active}" onclick="openRoll('${esc(r.id)}')">
+      return `<div class="roll-item${active}" onclick="openRoll('${esc(r.id)}')" style="cursor:pointer;">
         <div class="roll-item-header">
           <span class="roll-char">${esc(r.character)}</span>
           <span class="roll-total">${r.total}</span>
@@ -416,10 +568,24 @@
   // ---- Modal ----
   async function openRoll(id) {
     activeRollId = id;
-    renderRolls();
+    renderRollList("roll-list");
+    renderRollList("stats-roll-list");
+
+    // Show modal immediately with loading state
+    const body = document.getElementById("modal-body");
+    document.getElementById("modal-title").textContent = "Loading...";
+    body.innerHTML = `<div style="color:#484f58; padding:20px;">Loading roll detail...</div>`;
+    document.getElementById("modal-backdrop").classList.add("open");
+    document.querySelector(".modal").classList.add("open");
 
     const detail = await fetch(`/api/rolls/${encodeURIComponent(id)}`).then(r => r.json());
-    const body = document.getElementById("modal-body");
+
+    if (!detail) {
+      document.getElementById("modal-title").textContent = "Roll not found";
+      body.innerHTML = `<div style="color:#f85149; padding:20px;">This roll is no longer in history. Try clearing rolls and rolling again.</div>`;
+      return;
+    }
+
     document.getElementById("modal-title").textContent =
       `${detail.character} — ${detail.action} (${detail.rollType})`;
 
@@ -457,13 +623,12 @@
           <pre class="json-viewer">${esc(JSON.stringify(detail.raw, null, 2))}</pre>
         </details>
       </div>`;
-
-    document.getElementById("modal-backdrop").classList.add("open");
   }
 
   function closeModal(e) {
     if (e && e.target !== document.getElementById("modal-backdrop")) return;
     document.getElementById("modal-backdrop").classList.remove("open");
+    document.querySelector(".modal").classList.remove("open");
   }
 
   async function resendRoll() {
@@ -533,7 +698,7 @@
 
   // Keyboard: Escape closes modal
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") document.getElementById("modal-backdrop").classList.remove("open");
+    if (e.key === "Escape") { document.getElementById("modal-backdrop").classList.remove("open"); document.querySelector(".modal").classList.remove("open"); }
   });
 
   loadConfig();
