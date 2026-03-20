@@ -17,7 +17,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-ENV_PATH = (Path(__file__).parent / "../.env").resolve()
+ENV_PATH = Path(os.environ.get("ENV_PATH", str((Path(__file__).parent / "../.env").resolve())))
 load_dotenv(dotenv_path=ENV_PATH)
 
 # ---------- Persistence ----------

@@ -1,0 +1,14 @@
+services:
+  astral-bridge:
+    build: .
+    container_name: astral-bridge
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data      # persistent logs & roll history
+      - ./.env:/app/.env      # DDB credentials (never committed)
+    environment:
+      - ENV_PATH=/app/.env
+    env_file:
+      - .env
+    restart: unless-stopped
