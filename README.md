@@ -18,33 +18,30 @@ D&D Beyond (browser) ──WebSocket──▶ Python Bridge ──WebSocket─�
 ## Features
 
 - Native Foundry rolls with exact DDB dice values (d20, damage dice, modifiers)
-- **Attack rolls** — target picker popup with AC comparison → ✓ HIT / ✗ MISS
-- **Damage rolls** — auto-applies HP to hit targets; spell damage shows a target picker
+- **Attack rolls** — target picker popup with AC comparison → ✓ HIT / ✗ MISS; Force Hit button overrides the result
+- **Damage rolls** — unified picker: pre-selects hit targets, lets you adjust, apply, or double (crit); auto-applies HP
 - **Heal rolls** — target picker → automatically restores HP (capped at max)
 - **Initiative rolls** — auto-sets initiative in the Foundry combat tracker
-- **Automated Animations** integration — triggers AA animations on attacks, spells, and heals
+- **Floating numbers** — damage and heal amounts float over tokens via [Sequencer](https://github.com/fantasycalendar/FoundryVTT-Sequencer) (optional)
+- **HP Sync** — compares Foundry max HP with D&D Beyond on first roll per session; prompts to update if different (optional, off by default)
+- **Automated Animations** integration — triggers AA animations on damage
 - **Dice So Nice** toggle — enable/disable 3D dice animations for DDB rolls
 - Spell & weapon lookup via [D&D 5e API](https://www.dnd5eapi.co/) — shows spell school, damage type, weapon properties, and flavour text in chat
-- Critical hit detection with gold ✦ badge
+- Critical hit detection with gold ★ CRIT badge
 - Multi-target support with pre-selection of manually targeted tokens
-- **Web dashboard** — live log stream, roll history with detail modal, config editor, campaign switcher
+- **Web dashboard** — live log stream, roll statistics with charts, roll history with detail modal, config editor
 
 ---
 
 ## Requirements
 
 ### Python Bridge
-- Python 3.10+
-- `fastapi`, `uvicorn`, `websocket-client`, `requests`, `python-dotenv`
-
-```bash
-pip install fastapi uvicorn websocket-client requests python-dotenv
-```
+- Python 3.10+ **or** Docker
 
 ### Foundry Module
 - FoundryVTT v12 or v13
 - D&D 5e system
-- Optional: [Automated Animations](https://github.com/otigon/automated-jb2a-animations), [Dice So Nice](https://gitlab.com/riccisi/foundryvtt-dice-so-nice)
+- Optional: [Automated Animations](https://github.com/otigon/automated-jb2a-animations), [Dice So Nice](https://gitlab.com/riccisi/foundryvtt-dice-so-nice), [Sequencer](https://github.com/fantasycalendar/FoundryVTT-Sequencer)
 
 ---
 
@@ -52,7 +49,7 @@ pip install fastapi uvicorn websocket-client requests python-dotenv
 
 ### 1. Configure credentials
 
-Create a `.env` file next to `bridge.py` (or use the web dashboard):
+Create a `.env` file (or use the web dashboard later):
 
 ```env
 DDB_COBALT_TOKEN=eyJ...   # CobaltSession cookie from dndbeyond.com
@@ -60,16 +57,25 @@ DDB_GAME_ID=1234567       # Your campaign/game ID
 DDB_USER_ID=123456789     # Your DDB user ID
 ```
 
-To get your `CobaltSession` token: open D&D Beyond in your browser → DevTools → Application → Cookies → copy the value of `CobaltSession`.
+To get your `CobaltSession` token: open D&D Beyond → DevTools → Application → Cookies → copy `CobaltSession`.
 
 ### 2. Run the bridge
 
+**Option A — Docker (recommended):**
+
 ```bash
+docker compose up -d
+```
+
+**Option B — Python directly:**
+
+```bash
+pip install fastapi uvicorn websocket-client requests python-dotenv pydantic
 python bridge.py
 ```
 
 Web dashboard: `http://localhost:8765`
-Press `Q + Enter` to stop.
+Press `Q + Enter` to stop (Python mode).
 
 ### 3. Install the Foundry module
 
@@ -85,7 +91,10 @@ In FoundryVTT: **Settings → Module Settings → AstralBridge**
 | Roll Mode | Public Roll | How DDB rolls appear in chat |
 | Auto-set Initiative | ✓ | Updates combat tracker on initiative rolls |
 | Dice So Nice Animation | ✓ | Show 3D dice for DDB rolls |
-| Automated Animations | ✓ | Trigger AA on attacks/spells/heals |
+| Automated Animations | ✓ | Trigger AA animations on damage |
+| Damage Confirm Dialog | ✓ | Show target picker before applying damage |
+| Floating Numbers | ✓ | Show floating damage/heal numbers via Sequencer |
+| HP Sync | ✗ | Compare DDB max HP with Foundry on first roll per session |
 
 ---
 
@@ -93,9 +102,8 @@ In FoundryVTT: **Settings → Module Settings → AstralBridge**
 
 The bridge ships a built-in dashboard at `http://host:8765`:
 
-- **Live Log** — real-time log stream with persist across restarts
-- **Recent Rolls** — click any roll for full detail (dice, character info, raw JSON, resend button)
-- **Campaign Switcher** — load your DDB campaigns and switch with one click
+- **Dashboard** — live log stream + recent rolls; click any roll for full detail (dice, raw JSON, resend)
+- **Statistics** — Nat 20s, Nat 1s, average per character, roll distribution charts
 - **Config** — update credentials and restart the DDB connection without touching the terminal
 
 ---
@@ -110,11 +118,13 @@ The Foundry module matches the character name from DDB against actor names in Fo
 
 ```
 bridge.py                  # Python FastAPI bridge server
+Dockerfile                 # Docker image definition
+docker-compose.yml         # Docker Compose config
 templates/
   index.html               # Web dashboard UI
 data/
-  logs.jsonl               # Persistent log history (auto-created)
-  rolls.json               # Persistent roll history (auto-created)
+  logs.jsonl               # Persistent log history (auto-created, gitignored)
+  rolls.json               # Persistent roll history (auto-created, gitignored)
 
 modules/astral-bridge/
   module.json

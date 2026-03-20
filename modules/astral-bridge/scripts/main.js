@@ -217,6 +217,20 @@ Hooks.once("init", () => {
     default: true,
   });
 
+  game.settings.register(MODULE_ID, "hpSync", {
+    name: "HP Sync — DDB ↔ Foundry",
+    hint: "Compare max HP from D&D Beyond with the Foundry actor and notify if they differ. Allows auto-update.",
+    scope: "world", config: true, type: Boolean,
+    default: false,
+  });
+
+  game.settings.register(MODULE_ID, "damageConfirm", {
+    name: "Damage Confirmation Dialog",
+    hint: "Show a confirmation popup before applying damage, with options to double (crit), change targets, or cancel.",
+    scope: "world", config: true, type: Boolean,
+    default: true,
+  });
+
   game.settings.register(MODULE_ID, "floatingNumbers", {
     name: "Floating Damage / Heal Numbers",
     hint: "Show floating numbers on tokens when damage or healing is applied. Requires the Sequencer module.",
@@ -314,6 +328,20 @@ async function pickTarget(character, total, isCrit) {
                 const ac  = t.actor.system?.attributes?.ac?.value ?? null;
                 const hit = isCrit || (ac !== null ? total >= ac : null);
                 return { name: t.name, ac, hit, tokenId: t.id };
+              });
+            resolve(targets.length ? targets : null);
+          },
+        },
+        forceHit: {
+          icon:  '<i class="fas fa-check-double"></i>',
+          label: "Force Hit",
+          callback: html => {
+            const checkedIds = [...html.find("input[name='ddb-target']:checked")].map(el => el.value);
+            const targets = allTokens
+              .filter(t => checkedIds.includes(t.id))
+              .map(t => {
+                const ac = t.actor.system?.attributes?.ac?.value ?? null;
+                return { name: t.name, ac, hit: true, tokenId: t.id };
               });
             resolve(targets.length ? targets : null);
           },
@@ -464,10 +492,7 @@ async function applyHealingToTargets(targets, amount) {
 // Stores hit targets per character: Map<characterName, [{name, ac, tokenId}]>
 const pendingDamageTarget = new Map();
 
-async function applyDamageToTarget(character, damage) {
-  const targets = pendingDamageTarget.get(character);
-  if (!targets?.length) return null;
-
+async function applyDirectDamage(targets, damage) {
   const results = [];
   for (const target of targets) {
     const token = (canvas.tokens?.placeables ?? []).find(t => t.id === target.tokenId);
@@ -480,79 +505,90 @@ async function applyDamageToTarget(character, damage) {
     console.log(`${MODULE_ID} | Damage applied: ${target.name} HP ${oldHp} → ${newHp} (−${damage})`);
     results.push({ targetName: target.name, oldHp, newHp, damage, tokenId: token.id });
   }
-
-  pendingDamageTarget.delete(character);
   return results.length ? results : null;
 }
 
-async function applyDirectDamage(targets, damage) {
-  const results = [];
-  for (const target of targets) {
-    const token = (canvas.tokens?.placeables ?? []).find(t => t.id === target.tokenId);
-    if (!token?.actor) continue;
-    const hp = token.actor.system?.attributes?.hp;
-    if (!hp) continue;
-    const oldHp = hp.value;
-    const newHp = Math.max(0, oldHp - damage);
-    await token.actor.update({ "system.attributes.hp.value": newHp });
-    console.log(`${MODULE_ID} | Spell damage applied: ${target.name} HP ${oldHp} → ${newHp} (−${damage})`);
-    results.push({ targetName: target.name, oldHp, newHp, damage, tokenId: token.id });
-  }
-  return results.length ? results : null;
-}
+// ---------- Damage Picker + Confirmation (unified) ----------
 
-async function pickSpellDamageTargets(character, amount) {
+async function pickAndConfirmDamage(character, amount, isCrit, preSelectedIds) {
   const allTokens = (canvas.tokens?.placeables ?? []).filter(t => t.actor);
-  if (!allTokens.length) return null;
 
-  const manualTargetIds = new Set([...(game.user.targets ?? [])].map(t => t.id));
+  // If confirm dialog disabled: skip dialog, apply to pre-selected targets directly
+  if (!game.settings.get(MODULE_ID, "damageConfirm")) {
+    const targets = allTokens
+      .filter(t => preSelectedIds.includes(t.id))
+      .map(t => ({ name: t.name, tokenId: t.id }));
+    return targets.length ? { targets, amount } : null;
+  }
+
+  const preSelectedSet = new Set(preSelectedIds);
 
   return new Promise(resolve => {
-    const rows = allTokens.map(t => {
-      const hp         = t.actor.system?.attributes?.hp;
-      const cur        = hp?.value ?? "?";
-      const max        = hp?.max   ?? "?";
-      const img        = t.document.texture?.src ?? "icons/svg/mystery-man.svg";
-      const preChecked = manualTargetIds.has(t.id) ? "checked" : "";
+    const buildContent = (currentAmount) => {
+      const rows = allTokens.map(t => {
+        const hp  = t.actor.system?.attributes?.hp;
+        const cur = hp?.value ?? "?";
+        const max = hp?.max   ?? "?";
+        const img = t.document.texture?.src ?? "icons/svg/mystery-man.svg";
+        const checked = preSelectedSet.has(t.id) ? "checked" : "";
+        return `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;
+            border:1px solid #30363d;border-radius:4px;cursor:pointer;margin-bottom:4px;
+            background:#161b22;" onmouseover="this.style.background='#21262d'"
+            onmouseout="this.style.background='#161b22'">
+            <input type="checkbox" name="ddb-dmg-target" value="${t.id}" ${checked} style="flex-shrink:0;accent-color:#f85149;">
+            <img src="${img}" style="width:28px;height:28px;border-radius:3px;object-fit:cover;border:1px solid #30363d;">
+            <span style="flex:1;font-weight:600;color:#f0f6fc;">${t.name}</span>
+            <span style="color:#8b949e;font-size:0.82em;flex-shrink:0;">HP ${cur} / ${max}</span>
+          </label>`;
+      }).join("");
+
       return `
-        <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;
-          border:1px solid #c9c4b3;border-radius:4px;cursor:pointer;margin-bottom:4px;
-          background:#f9f6ee;" onmouseover="this.style.background='#ede9dc'"
-          onmouseout="this.style.background='#f9f6ee'">
-          <input type="checkbox" name="ddb-spell-target" value="${t.id}" ${preChecked} style="flex-shrink:0;">
-          <img src="${img}" style="width:28px;height:28px;border-radius:3px;object-fit:cover;border:1px solid #c9c4b3;">
-          <span style="flex:1;font-weight:600;">${t.name}</span>
-          <span style="color:#888;font-size:0.85em;flex-shrink:0;">HP ${cur} / ${max}</span>
-        </label>`;
-    }).join("");
+        <div style="font-family:'Segoe UI',system-ui,sans-serif;padding:4px 0;">
+          <div style="font-size:2.2em;font-weight:700;color:#f85149;text-align:center;margin-bottom:4px;line-height:1.1;">
+            ${currentAmount}
+            ${isCrit ? "<span style='font-size:0.45em;color:#e3b341;vertical-align:middle;margin-left:6px;'>CRIT</span>" : ""}
+          </div>
+          <div style="text-align:center;color:#8b949e;font-size:0.8em;margin-bottom:14px;">damage — select targets</div>
+          <div style="max-height:260px;overflow-y:auto;">${rows}</div>
+        </div>`;
+    };
 
-    const content = `
-      <div style="font-family:Georgia,serif;padding:4px 0 8px 0;">
-        <p style="margin-bottom:10px;font-size:0.92em;">
-          <strong>${character}</strong> deals <strong style="color:#c0392b;">${amount} damage</strong> — choose target(s)
-        </p>
-        ${rows}
-      </div>`;
-
-    new Dialog({
-      title: "Choose Spell Target(s)",
-      content,
-      buttons: {
-        apply: {
-          icon: '<i class="fas fa-bolt"></i>',
-          label: "Apply",
-          callback: html => {
-            const checkedIds = [...html.find("input[name='ddb-spell-target']:checked")].map(el => el.value);
-            const targets = allTokens
-              .filter(t => checkedIds.includes(t.id))
-              .map(t => ({ name: t.name, tokenId: t.id }));
-            resolve(targets.length ? targets : null);
+    const showDialog = (currentAmount) => {
+      new Dialog({
+        title: `Damage — ${character}`,
+        content: buildContent(currentAmount),
+        buttons: {
+          apply: {
+            icon: '<i class="fas fa-check"></i>',
+            label: `Apply ${currentAmount}`,
+            callback: html => {
+              const checkedIds = [...html.find("input[name='ddb-dmg-target']:checked")].map(el => el.value);
+              const targets = allTokens.filter(t => checkedIds.includes(t.id)).map(t => ({ name: t.name, tokenId: t.id }));
+              resolve(targets.length ? { targets, amount: currentAmount } : null);
+            },
+          },
+          double: {
+            icon: '<i class="fas fa-2x"></i>',
+            label: `Double → ${currentAmount * 2}`,
+            callback: html => {
+              const checkedIds = [...html.find("input[name='ddb-dmg-target']:checked")].map(el => el.value);
+              const targets = allTokens.filter(t => checkedIds.includes(t.id)).map(t => ({ name: t.name, tokenId: t.id }));
+              resolve(targets.length ? { targets, amount: currentAmount * 2 } : null);
+            },
+          },
+          cancel: {
+            icon: '<i class="fas fa-ban"></i>',
+            label: "Cancel",
+            callback: () => resolve(null),
           },
         },
-        skip: { label: "Skip", callback: () => resolve(null) },
-      },
-      default: "apply",
-    }, { width: 320 }).render(true);
+        default: "apply",
+        close: () => resolve(null),
+      }, { width: 360 }).render(true);
+    };
+
+    showDialog(amount);
   });
 }
 
@@ -583,10 +619,66 @@ async function updateInitiative(character, value) {
   console.log(`${MODULE_ID} | Initiative set: ${character} = ${value}`);
 }
 
+// ---------- HP Sync ----------
+
+const _syncedCharacters = new Set();
+
+async function syncHpFromDDB(character, entityId) {
+  if (!game.settings.get(MODULE_ID, "hpSync")) return;
+  if (!entityId || _syncedCharacters.has(entityId)) return;
+  _syncedCharacters.add(entityId);
+
+  const bridgeUrl = game.settings.get(MODULE_ID, "bridgeUrl")
+    .replace("ws://", "http://").replace("wss://", "https://").replace("/ws", "");
+
+  try {
+    const res = await fetch(`${bridgeUrl}/api/character/${entityId}`);
+    if (!res.ok) return;
+    const ddb = await res.json();
+    if (!ddb.max_hp) return;
+
+    const actor = game.actors.find(a => a.name === character);
+    if (!actor) return;
+
+    const foundryMax = actor.system?.attributes?.hp?.max;
+    if (foundryMax === ddb.max_hp) return;
+
+    // HP mismatch — ask user
+    const choice = await Dialog.confirm({
+      title: "HP Sync — AstralBridge",
+      content: `
+        <div style="font-family:'Segoe UI',sans-serif;padding:4px 0;">
+          <p style="margin-bottom:10px;">Max HP mismatch for <strong>${character}</strong>:</p>
+          <div style="display:flex;gap:16px;justify-content:center;margin-bottom:10px;">
+            <div style="text-align:center;">
+              <div style="font-size:1.8em;font-weight:700;color:#4f9eff;">${foundryMax}</div>
+              <div style="font-size:0.75em;color:#8b949e;">Foundry</div>
+            </div>
+            <div style="font-size:1.5em;color:#8b949e;align-self:center;">→</div>
+            <div style="text-align:center;">
+              <div style="font-size:1.8em;font-weight:700;color:#34d068;">${ddb.max_hp}</div>
+              <div style="font-size:0.75em;color:#8b949e;">D&D Beyond</div>
+            </div>
+          </div>
+          <p style="font-size:0.85em;color:#8b949e;">Update Foundry to match D&D Beyond?</p>
+        </div>`,
+      yes: { label: "Update", icon: '<i class="fas fa-sync"></i>' },
+      no:  { label: "Keep",   icon: '<i class="fas fa-times"></i>' },
+    });
+
+    if (choice) {
+      await actor.update({ "system.attributes.hp.max": ddb.max_hp });
+      ui.notifications?.info(`AstralBridge: ${character} max HP updated ${foundryMax} → ${ddb.max_hp}`);
+    }
+  } catch (_) {
+    // silently ignore HP sync errors
+  }
+}
+
 // ---------- Roll Handling ----------
 
 async function handleRoll(data) {
-  const { character, action, rollType, total, text, dice = [], constant = 0 } = data;
+  const { character, action, rollType, total, text, dice = [], constant = 0, entity_id } = data;
   const label = getRollLabel(action, rollType);
   const crit = isCriticalHit(dice, rollType);
 
@@ -597,6 +689,7 @@ async function handleRoll(data) {
   const isInitiative = action.toLowerCase() === "initiative";
 
   if (isInitiative) updateInitiative(character, total).catch(console.warn);
+  if (entity_id) syncHpFromDDB(character, entity_id).catch(console.warn);
 
   const [apiInfo, targetResult] = await Promise.all([
     lookupApiInfo(action, rollType),
@@ -607,13 +700,6 @@ async function handleRoll(data) {
   const healTargets = isHeal ? await pickHealTargets(character, total) : null;
   const healResults = healTargets ? await applyHealingToTargets(healTargets, total) : null;
 
-  // Trigger AA for attack rolls
-  if (isAttack && targetResult) {
-    const targetTokens = (canvas.tokens?.placeables ?? [])
-      .filter(t => targetResult.some(tr => tr.tokenId === t.id));
-    triggerAutoAnimations(character, action, targetTokens).catch(console.warn);
-  }
-
   // Store hit targets for upcoming damage roll, clear on miss
   if (isAttack && targetResult) {
     const hitTargets = targetResult.filter(t => t.hit);
@@ -621,17 +707,24 @@ async function handleRoll(data) {
     else pendingDamageTarget.delete(character);
   }
 
-  // Damage flow: weapon (uses stored hit targets) or spell (show picker)
-  const isSpellDamage = isDamage && !pendingDamageTarget.has(character);
-  const spellDamageTargets = isSpellDamage ? await pickSpellDamageTargets(character, total) : null;
-  const damageResults = isDamage
-    ? (spellDamageTargets
-        ? await applyDirectDamage(spellDamageTargets, total)
-        : await applyDamageToTarget(character, total))
-    : null;
+  // Damage flow: unified picker + confirm dialog
+  let damageResults = null;
+  if (isDamage) {
+    // Pre-select hit targets (weapon) or manually targeted tokens (spell)
+    const storedHits   = pendingDamageTarget.get(character) ?? [];
+    const preSelectedIds = storedHits.length
+      ? storedHits.map(t => t.tokenId)
+      : [...(game.user.targets ?? [])].map(t => t.id);
+    pendingDamageTarget.delete(character);
 
-  // Trigger AA for spell damage and heals
-  if (isSpellDamage && damageResults) {
+    const confirmed = await pickAndConfirmDamage(character, total, crit, preSelectedIds);
+    if (confirmed) {
+      damageResults = await applyDirectDamage(confirmed.targets, confirmed.amount);
+    }
+  }
+
+  // Trigger AA for damage and heals
+  if (isDamage && damageResults) {
     const tokens = (canvas.tokens?.placeables ?? []).filter(t => damageResults.some(r => r.tokenId === t.id));
     triggerAutoAnimations(character, action, tokens).catch(console.warn);
   }
@@ -664,57 +757,42 @@ async function handleRoll(data) {
 
 function buildFlavor(label, text, rollType, isCrit, apiInfo, targetResult = null, damageResults = null, healResults = null, action = "") {
   const TYPE_ACCENTS = {
-    attack: "#c0392b", damage: "#c0672b", heal: "#2ea043", save: "#1f6aa5",
-    check: "#1e7e44", initiative: "#7b2d8b", other: "#555",
+    attack:     "#c0392b",
+    damage:     "#b8860b",
+    heal:       "#1a7a3a",
+    save:       "#1a4fa0",
+    check:      "#1a7a3a",
+    initiative: "#6a3fa0",
+    other:      "#555566",
   };
-  const accent = TYPE_ACCENTS[getRollTypeClass(rollType, action)] ?? TYPE_ACCENTS.other;
+  const typeKey = getRollTypeClass(rollType, action);
+  const accent = TYPE_ACCENTS[typeKey] ?? TYPE_ACCENTS.other;
   const breakdown = formatBreakdown(text);
 
-  const borderStyle = isCrit
-    ? "border-left:3px solid #e6a817; background:rgba(230,168,23,0.06);"
-    : `border-left:3px solid ${accent};`;
+  const critBadge = isCrit
+    ? `<span style="font-size:0.65em;background:#fff3cd;color:#856404;
+        border:1px solid #ffc107;border-radius:3px;padding:1px 7px;
+        font-weight:700;letter-spacing:0.06em;">★ CRIT</span>` : "";
 
-  const critBadge = isCrit ? `
-    <span style="font-size:0.68em; background:#e6a817; color:#1a1a00;
-      border-radius:3px; padding:1px 7px; font-weight:700; letter-spacing:0.04em;">
-      ★ CRIT
-    </span>` : "";
-
-  const ddbBadge = `
-    <span style="font-size:0.68em; background:#7b1111; color:#ffd9d9;
-      border-radius:3px; padding:1px 7px; font-weight:600; opacity:0.9;">
-      D&amp;D Beyond
-    </span>`;
-
-  const TAG = `font-size:0.72em; background:rgba(0,0,0,0.07);
-    border:1px solid rgba(0,0,0,0.14); border-radius:3px; padding:1px 6px; white-space:nowrap;`;
+  const ddbBadge = `<span style="font-size:0.63em;background:rgba(0,0,0,0.06);color:#666;
+    border:1px solid rgba(0,0,0,0.15);border-radius:3px;padding:1px 6px;font-weight:600;
+    letter-spacing:0.04em;">DDB</span>`;
 
   let spellSection = "";
   if (apiInfo) {
-    const tagHtml = apiInfo.tags
-      .map(t => `<span style="${TAG}">${t}</span>`)
-      .join("");
-
+    const tagHtml = apiInfo.tags.map(t =>
+      `<span style="font-size:0.68em;background:rgba(0,0,0,0.05);border:1px solid rgba(0,0,0,0.15);
+        border-radius:3px;padding:1px 6px;color:#444;white-space:nowrap;">${t}</span>`
+    ).join("");
     spellSection = `
-      <div style="display:flex; flex-wrap:wrap; gap:3px; margin:4px 0 3px 0;">
-        ${tagHtml}
-      </div>
-      ${apiInfo.desc ? `<div style="
-        font-size:1em;
-        font-style:italic;
-        line-height:1.5;
-        margin:4px 0 2px 0;
-        padding:5px 8px;
-        background:rgba(210,180,120,0.18);
-        border:1px solid rgba(160,120,60,0.25);
-        border-radius:3px;
-        color:#5a3e1b;
-        font-family:Georgia,'Times New Roman',serif;
-      ">${apiInfo.desc}</div>` : ""}`;
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin:5px 0 3px 0;">${tagHtml}</div>
+      ${apiInfo.desc ? `<div style="font-size:0.82em;font-style:italic;line-height:1.55;margin:4px 0;
+        padding:6px 9px;background:rgba(0,0,0,0.04);border-left:2px solid rgba(0,0,0,0.15);
+        border-radius:0 4px 4px 0;color:#555;">${apiInfo.desc}</div>` : ""}`;
   }
 
   const breakdownHtml = breakdown
-    ? `<div style="font-size:1em; opacity:0.75; font-style:italic; margin-top:3px;">${breakdown}</div>`
+    ? `<div style="font-size:0.82em;color:#666;font-style:italic;margin-top:3px;">${breakdown}</div>`
     : "";
 
   let targetHtml = "";
@@ -722,69 +800,71 @@ function buildFlavor(label, text, rollType, isCrit, apiInfo, targetResult = null
     const rows = targetResult.map(tr => {
       const hit     = tr.hit;
       const unknown = hit === null;
-      const bg    = unknown ? "rgba(0,0,0,0.06)" : hit ? "rgba(46,160,67,0.12)" : "rgba(248,81,73,0.12)";
-      const bdr   = unknown ? "#888"             : hit ? "#2ea043"              : "#f85149";
-      const color = unknown ? "#555"             : hit ? "#1a6e10"              : "#c0392b";
+      const bdr   = unknown ? "rgba(0,0,0,0.1)" : hit ? "#1a7a3a" : "rgba(0,0,0,0.1)";
+      const col   = unknown ? "#666" : hit ? "#1a7a3a" : "#c0392b";
       const icon  = (isCrit || hit) ? (isCrit ? "★ CRIT" : "✓ HIT") : "✗ MISS";
-      const acStr = tr.ac !== null ? ` vs AC ${tr.ac}` : "";
-      return `<div style="display:flex;align-items:center;gap:6px;padding:3px 8px;
-        background:${bg};border:1px solid ${bdr};border-radius:3px;">
-        <span style="font-weight:700;font-size:0.88em;color:${color};">${icon}</span>
-        <span style="font-size:0.82em;color:#555;">${tr.name}${acStr}</span>
+      const acStr = tr.ac !== null ? `<span style="color:#888;margin-left:4px;font-size:0.9em;">AC ${tr.ac}</span>` : "";
+      return `<div style="display:flex;align-items:center;justify-content:space-between;
+        padding:4px 8px;background:rgba(0,0,0,0.04);border:1px solid ${bdr};border-radius:4px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-weight:700;font-size:0.82em;color:${col};letter-spacing:0.04em;">${icon}</span>
+          <span style="font-size:0.85em;color:#333;">${tr.name}</span>
+        </div>
+        ${acStr}
       </div>`;
     }).join("");
-    targetHtml = `<div style="display:flex;flex-direction:column;gap:3px;margin-top:5px;">${rows}</div>`;
+    targetHtml = `<div style="display:flex;flex-direction:column;gap:3px;margin-top:6px;">${rows}</div>`;
   }
 
   let damageHtml = "";
   if (damageResults?.length) {
     const bars = damageResults.map(r => {
-      const pct      = Math.round((r.newHp / Math.max(r.oldHp, 1)) * 100);
-      const barColor = pct > 50 ? "#2ea043" : pct > 25 ? "#e3b341" : "#f85149";
-      return `<div style="padding:4px 8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-          <span style="font-size:0.82em;color:#555;">${r.targetName}</span>
-          <span style="font-size:0.82em;font-weight:700;color:#f85149;">−${r.damage} HP</span>
+      const pct = Math.round((r.newHp / Math.max(r.oldHp, 1)) * 100);
+      const barCol = pct > 50 ? "#1a7a3a" : pct > 25 ? "#b8860b" : "#c0392b";
+      return `<div style="padding:5px 8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:0.82em;color:#333;">${r.targetName}</span>
+          <span style="font-size:0.82em;font-weight:700;color:#c0392b;">−${r.damage} HP</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <div style="flex:1;height:5px;background:#333;border-radius:3px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;"></div>
+          <div style="flex:1;height:4px;background:rgba(0,0,0,0.1);border-radius:4px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${barCol};border-radius:4px;transition:width 0.3s;"></div>
           </div>
-          <span style="font-size:0.72em;color:#666;flex-shrink:0;">${r.newHp}/${r.oldHp}</span>
+          <span style="font-size:0.7em;color:#888;flex-shrink:0;font-variant-numeric:tabular-nums;">${r.newHp} / ${r.oldHp}</span>
         </div>
       </div>`;
     }).join("");
-    damageHtml = `<div style="margin-top:5px;background:rgba(248,81,73,0.08);
-      border:1px solid #f85149;border-radius:3px;">${bars}</div>`;
+    damageHtml = `<div style="margin-top:6px;background:rgba(0,0,0,0.03);
+      border:1px solid rgba(0,0,0,0.1);border-radius:5px;">${bars}</div>`;
   }
 
   let healHtml = "";
   if (healResults?.length) {
     const bars = healResults.map(r => {
-      const pct      = Math.round((r.newHp / Math.max(r.maxHp, 1)) * 100);
-      const barColor = pct > 50 ? "#2ea043" : pct > 25 ? "#e3b341" : "#f85149";
-      return `<div style="padding:4px 8px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-          <span style="font-size:0.82em;color:#555;">${r.targetName}</span>
-          <span style="font-size:0.82em;font-weight:700;color:#2ea043;">+${r.healed} HP</span>
+      const pct = Math.round((r.newHp / Math.max(r.maxHp, 1)) * 100);
+      const barCol = pct > 50 ? "#1a7a3a" : pct > 25 ? "#b8860b" : "#c0392b";
+      return `<div style="padding:5px 8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:0.82em;color:#333;">${r.targetName}</span>
+          <span style="font-size:0.82em;font-weight:700;color:#1a7a3a;">+${r.healed} HP</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <div style="flex:1;height:5px;background:#333;border-radius:3px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;"></div>
+          <div style="flex:1;height:4px;background:rgba(0,0,0,0.1);border-radius:4px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${barCol};border-radius:4px;"></div>
           </div>
-          <span style="font-size:0.72em;color:#666;flex-shrink:0;">${r.newHp}/${r.maxHp}</span>
+          <span style="font-size:0.7em;color:#888;flex-shrink:0;font-variant-numeric:tabular-nums;">${r.newHp} / ${r.maxHp}</span>
         </div>
       </div>`;
     }).join("");
-    healHtml = `<div style="margin-top:5px;background:rgba(46,160,67,0.08);
-      border:1px solid #2ea043;border-radius:3px;">${bars}</div>`;
+    healHtml = `<div style="margin-top:6px;background:rgba(0,0,0,0.03);
+      border:1px solid rgba(0,0,0,0.1);border-radius:5px;">${bars}</div>`;
   }
 
   return `
-    <div style="padding:4px 4px 4px 9px; ${borderStyle} border-radius:0 3px 3px 0; margin:1px 0;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
-        <strong style="font-size:0.95em; line-height:1.4; flex:1;">${label}</strong>
-        <div style="display:flex; gap:3px; align-items:center; flex-shrink:0; padding-top:1px;">
+    <div style="padding:6px 8px 6px 10px;border-left:3px solid ${accent};border-radius:0 5px 5px 0;margin:1px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+        <strong style="font-size:0.92em;color:#1a1a2e;line-height:1.4;flex:1;">${label}</strong>
+        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
           ${critBadge}${ddbBadge}
         </div>
       </div>
