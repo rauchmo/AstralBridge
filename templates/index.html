@@ -214,6 +214,11 @@
   <div class="sidebar">
 
     <div class="card">
+      <h3>Roll Statistics</h3>
+      <div id="stats-body" style="font-size:0.82em; color:#8b949e;">No rolls yet.</div>
+    </div>
+
+    <div class="card">
       <h3>Connection</h3>
       <button class="btn danger" onclick="restartDDB()">↺ Restart DDB Connection</button>
     </div>
@@ -221,19 +226,15 @@
     <div class="card">
       <h3>Campaign</h3>
       <div class="form-group">
-        <label>
-          Active Campaign
-          <button onclick="fetchCampaigns(this)">⟳ Load</button>
-        </label>
-        <select id="campaign-select" style="
-          width:100%; background:#0d1117; border:1px solid #30363d;
-          color:#c9d1d9; padding:5px 8px; border-radius:4px;
-          font-size:0.85em; cursor:pointer;
-        " onchange="onCampaignSelect(this)">
-          <option value="">— select a campaign —</option>
-        </select>
+        <label>Game ID</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="quick-game-id" placeholder="e.g. 6572636" style="flex:1;">
+          <button class="btn primary" onclick="switchGameId()">Switch</button>
+        </div>
+        <div style="font-size:0.78em; color:#8b949e; margin-top:4px;">
+          Enter your DDB Campaign/Game ID and click Switch to reconnect.
+        </div>
       </div>
-      <div id="campaign-info" style="font-size:0.78em; color:#8b949e; margin-top:4px; display:none;"></div>
     </div>
 
     <div class="card">
@@ -358,7 +359,41 @@
     return "other";
   }
 
+  function renderStats() {
+    const el = document.getElementById("stats-body");
+    if (!rolls.length) { el.innerHTML = "No rolls yet."; return; }
+
+    // Per-character aggregation
+    const chars = {};
+    for (const r of rolls) {
+      const c = r.character || "Unknown";
+      if (!chars[c]) chars[c] = { totals: [], nat20: 0, nat1: 0 };
+      const s = chars[c];
+      // Only count d20 rolls for avg/nat tracking
+      const d20 = (r.dice || []).filter(d => d.faces === 20);
+      if (d20.length) {
+        s.totals.push(r.total);
+        if (d20.some(d => d.result === 20)) s.nat20++;
+        if (d20.some(d => d.result === 1))  s.nat1++;
+      }
+    }
+
+    el.innerHTML = Object.entries(chars).map(([name, s]) => {
+      const avg = s.totals.length ? (s.totals.reduce((a, b) => a + b, 0) / s.totals.length).toFixed(1) : "—";
+      return `<div style="margin-bottom:10px;">
+        <div style="color:#c9d1d9; font-weight:600; margin-bottom:3px;">${esc(name)}</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <span title="Nat 20s">🎯 ${s.nat20}</span>
+          <span title="Nat 1s">💀 ${s.nat1}</span>
+          <span title="Average d20 total">Ø ${avg}</span>
+          <span title="Total d20 rolls" style="color:#484f58;">${s.totals.length} rolls</span>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
   function renderRolls() {
+    renderStats();
     const list = document.getElementById("roll-list");
     document.getElementById("roll-count").textContent = `${rolls.length} roll${rolls.length !== 1 ? "s" : ""}`;
     list.innerHTML = rolls.map(r => {
@@ -446,46 +481,11 @@
   }
 
   // ---- Campaign switcher ----
-  let _campaigns = [];
-
-  async function fetchCampaigns(btn) {
-    btn.textContent = "...";
-    btn.disabled = true;
-    try {
-      _campaigns = await fetch("/api/campaigns").then(r => r.json());
-      const sel = document.getElementById("campaign-select");
-      const currentId = document.getElementById("game-id").value;
-      sel.innerHTML = '<option value="">— select a campaign —</option>' +
-        _campaigns.map(c =>
-          `<option value="${esc(String(c.id))}" ${String(c.id) === currentId ? "selected" : ""}>
-            ${esc(c.name)}${c.dmUsername ? ` · DM: ${esc(c.dmUsername)}` : ""}
-          </option>`
-        ).join("");
-      // Show info for already-selected campaign
-      const active = _campaigns.find(c => String(c.id) === currentId);
-      if (active) showCampaignInfo(active);
-      if (_campaigns.length === 0) toast("No active campaigns found.", true);
-      else toast(`Loaded ${_campaigns.length} campaign(s)`);
-    } catch { toast("Failed to load campaigns.", true); }
-    btn.textContent = "⟳ Load";
-    btn.disabled = false;
-  }
-
-  function onCampaignSelect(sel) {
-    const id = sel.value;
-    if (!id) return;
+  function switchGameId() {
+    const id = document.getElementById("quick-game-id").value.trim();
+    if (!id) { toast("Please enter a Game ID.", true); return; }
     document.getElementById("game-id").value = id;
-    const c = _campaigns.find(c => String(c.id) === id);
-    if (c) showCampaignInfo(c);
-  }
-
-  function showCampaignInfo(c) {
-    const el = document.getElementById("campaign-info");
-    const parts = [];
-    if (c.dmUsername)           parts.push(`DM: ${esc(c.dmUsername)}`);
-    if (c.characters?.length)   parts.push(`Characters: ${c.characters.map(esc).join(", ")}`);
-    el.innerHTML = parts.join("<br>");
-    el.style.display = parts.length ? "block" : "none";
+    saveConfig(true);
   }
 
   // ---- Config ----

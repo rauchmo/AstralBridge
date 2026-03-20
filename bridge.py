@@ -365,48 +365,6 @@ async def api_update_config(cfg: ConfigUpdate):
     return {"status": "ok"}
 
 
-@app.get("/api/campaigns")
-async def api_get_campaigns():
-    cobalt_token = os.getenv("DDB_COBALT_TOKEN")
-    user_id = os.getenv("DDB_USER_ID")
-    if not cobalt_token or not user_id:
-        return []
-    try:
-        headers = {
-            "cookie": f"CobaltSession={cobalt_token}; User.ID={user_id};",
-            "Accept": "application/json",
-        }
-        r = requests.get(
-            f"https://character-service.dndbeyond.com/character/v5/user",
-            headers=headers, timeout=10,
-        )
-        r.raise_for_status()
-        body = r.json()
-        characters = body.get("data", []) if isinstance(body, dict) else body
-
-        # Extract unique campaigns from character list
-        seen = {}
-        for char in characters:
-            campaign = char.get("campaign")
-            if not campaign:
-                continue
-            cid = str(campaign.get("id", ""))
-            if cid and cid not in seen:
-                seen[cid] = {
-                    "id":         cid,
-                    "name":       campaign.get("name", f"Campaign {cid}"),
-                    "dmUsername": campaign.get("dmUsername", ""),
-                    "characters": [],
-                }
-            if cid:
-                seen[cid]["characters"].append(char.get("name", "Unknown"))
-
-        campaigns = list(seen.values())
-        log("info", f"Fetched {len(campaigns)} campaign(s) from D&D Beyond character service")
-        return campaigns
-    except Exception as e:
-        log("warn", f"Failed to fetch campaigns: {e}")
-        return []
 
 
 @app.delete("/api/logs")
