@@ -420,3 +420,38 @@ def test_trigger_endpoint_plays_event(api_client, mock_wled):
 def test_trigger_endpoint_404_unknown(api_client):
     r = api_client.post("/dl/api/events/does_not_exist/trigger")
     assert r.status_code == 404
+
+
+# ── Task 2: ambient mode upsert + delete ─────────────────────────────────────
+
+def test_put_ambient_mode_creates_new(api_client):
+    r = api_client.put("/dl/api/dungeon-screen/ambient/stadt",
+        json={"color":[200,180,100],"fx":2,"bri":150,"sx":80})
+    assert r.status_code == 200
+    assert "stadt" in dl.dl_load()["dungeon_screen"]["ambient_modes"]
+
+
+def test_put_ambient_mode_updates_existing(api_client):
+    r = api_client.put("/dl/api/dungeon-screen/ambient/taverne",
+        json={"color":[1,2,3],"fx":9,"bri":50,"sx":40})
+    assert r.status_code == 200
+    assert dl.dl_load()["dungeon_screen"]["ambient_modes"]["taverne"]["bri"] == 50
+
+
+def test_delete_ambient_mode_removes(api_client):
+    r = api_client.delete("/dl/api/dungeon-screen/ambient/taverne")
+    assert r.status_code == 200
+    assert "taverne" not in dl.dl_load()["dungeon_screen"]["ambient_modes"]
+
+
+def test_delete_ambient_mode_clears_active(api_client):
+    dl._dl_ds_ambient_mode = "taverne"
+    r = api_client.delete("/dl/api/dungeon-screen/ambient/taverne")
+    assert r.status_code == 200
+    assert dl._dl_ds_ambient_mode is None
+    assert dl.dl_load()["dungeon_screen"]["current_ambient"] is None
+
+
+def test_delete_ambient_mode_404(api_client):
+    r = api_client.delete("/dl/api/dungeon-screen/ambient/no_such_mode")
+    assert r.status_code == 404

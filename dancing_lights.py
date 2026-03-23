@@ -478,6 +478,34 @@ async def dl_api_clear_ambient():
     return {"status": "ok"}
 
 
+@router.put("/api/dungeon-screen/ambient/{mode}")
+async def dl_api_upsert_ambient_mode(mode: str, body: dict):
+    cfg = dl_load()
+    cfg["dungeon_screen"].setdefault("ambient_modes", {})[mode] = {
+        "color": body.get("color", [255, 255, 255]),
+        "fx":    int(body.get("fx", 0)),
+        "bri":   int(body.get("bri", 150)),
+        "sx":    int(body.get("sx", 100)),
+    }
+    dl_save(cfg)
+    return cfg["dungeon_screen"]["ambient_modes"][mode]
+
+
+@router.delete("/api/dungeon-screen/ambient/{mode}")
+async def dl_api_delete_ambient_mode(mode: str):
+    global _dl_ds_ambient_mode
+    cfg = dl_load()
+    modes = cfg["dungeon_screen"].get("ambient_modes", {})
+    if mode not in modes:
+        raise HTTPException(404, f"Ambient mode not found: {mode}")
+    del modes[mode]
+    if cfg["dungeon_screen"].get("current_ambient") == mode or _dl_ds_ambient_mode == mode:
+        cfg["dungeon_screen"]["current_ambient"] = None
+        _dl_ds_ambient_mode = None
+    dl_save(cfg)
+    return {"status": "ok"}
+
+
 @router.post("/api/dungeon-screen/restore")
 async def dl_api_ds_restore():
     """Re-apply current layer state. Called by dashboard after preview drag ends."""
