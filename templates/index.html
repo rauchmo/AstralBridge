@@ -627,6 +627,35 @@
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn primary small" onclick="dlSaveEvents()">Save All Events</button>
     </div>
+
+    <!-- Add Event form -->
+    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
+      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:10px;">Neues Event hinzufügen</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Key (slug)</label>
+          <input type="text" id="dl-add-ev-key" placeholder="z.B. schaden_feuer" style="width:100%;"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Label</label>
+          <input type="text" id="dl-add-ev-label" placeholder="Feuerschaden" style="width:100%;"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Farbe</label>
+          <input type="color" id="dl-add-ev-color" value="#ff3200"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effekt</label>
+          <select id="dl-add-ev-fx" style="font-size:.85em;width:100%;"></select></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Helligkeit</label>
+          <input type="number" id="dl-add-ev-bri" value="200" min="0" max="255" style="width:80px;"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Speed</label>
+          <input type="number" id="dl-add-ev-spd" value="150" min="0" max="255" style="width:80px;"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Dauer (ms)</label>
+          <input type="number" id="dl-add-ev-dur" value="2000" min="500" max="10000" step="100" style="width:100px;"></div>
+        <div style="display:flex;align-items:flex-end;">
+          <label class="dl-toggle">
+            <input type="checkbox" id="dl-add-ev-en" checked>
+            <div class="dl-toggle-track"></div>
+            <span class="dl-toggle-label">Aktiv</span>
+          </label>
+        </div>
+      </div>
+      <button class="btn primary small" onclick="dlAddEvent()">Event hinzufügen</button>
+    </div>
   </div>
 </div>
 
@@ -1437,6 +1466,9 @@
 
   // ─── DL Events ───────────────────────────────────────────────
   async function dlLoadEvents() {
+    const effectOpts = DL_EFFECTS.map(([id,name]) => `<option value="${id}">${name}</option>`).join("");
+    const addFx = document.getElementById("dl-add-ev-fx");
+    if (addFx) addFx.innerHTML = effectOpts;
     _dlEvents = await fetch("/dl/api/events").then(r => r.json()).catch(() => ({}));
     dlRenderEvents(_dlEvents);
   }
@@ -1457,6 +1489,7 @@
         <div class="dl-ev-row"><label>Duration</label><input type="number" id="dl-ev-dur-${key}" value="${ev.duration??2000}" min="500" max="10000" step="100" style="width:80px;"><span style="font-size:.75em;color:var(--text-muted);">ms</span></div>
         <div style="display:flex;gap:6px;margin-top:10px;">
           <button class="btn small" style="background:var(--green-dim);border-color:rgba(52,208,104,.3);color:var(--green);" onclick="dlTestEvent('${key}')">▶ Test</button>
+          <button class="btn small danger" onclick="dlDeleteEvent('${key}')">✕ Löschen</button>
         </div>
       </div>`).join("");
     Object.entries(events).forEach(([key,ev]) => {
@@ -1486,6 +1519,38 @@
   async function dlTestEvent(name) {
     await fetch(`/dl/api/events/${name}/trigger`, { method:"POST" });
     toast(`Triggered: ${name}`);
+  }
+
+  async function dlDeleteEvent(key) {
+    if (!confirm(`Event "${_dlEvents[key]?.label || key}" wirklich löschen?`)) return;
+    const r = await fetch(`/dl/api/events/${key}`, {method:"DELETE"});
+    if (!r.ok) { toast("Fehler beim Löschen."); return; }
+    delete _dlEvents[key];
+    dlRenderEvents(_dlEvents);
+    toast(`Event "${key}" gelöscht.`);
+  }
+
+  async function dlAddEvent() {
+    const key = document.getElementById("dl-add-ev-key").value.trim().toLowerCase().replace(/[^a-z0-9_]/g,"");
+    if (!key) { toast("Bitte einen gültigen Key eingeben."); return; }
+    if (_dlEvents[key]) { toast(`Event "${key}" existiert bereits.`); return; }
+    const label  = document.getElementById("dl-add-ev-label").value.trim() || key;
+    const color  = dlHexToRgb(document.getElementById("dl-add-ev-color").value);
+    const effect = parseInt(document.getElementById("dl-add-ev-fx").value);
+    const bri    = parseInt(document.getElementById("dl-add-ev-bri").value);
+    const speed  = parseInt(document.getElementById("dl-add-ev-spd").value);
+    const dur    = parseInt(document.getElementById("dl-add-ev-dur").value);
+    const enabled = document.getElementById("dl-add-ev-en").checked;
+    const body = {label, enabled, color, effect, brightness: bri, speed, duration: dur};
+    const r = await fetch(`/dl/api/events/${key}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
+    });
+    if (!r.ok) { toast("Fehler beim Hinzufügen."); return; }
+    _dlEvents[key] = body;
+    document.getElementById("dl-add-ev-key").value = "";
+    document.getElementById("dl-add-ev-label").value = "";
+    dlRenderEvents(_dlEvents);
+    toast(`Event "${key}" hinzugefügt.`);
   }
 
   // ─── DL Dungeon Screen ───────────────────────────────────────
