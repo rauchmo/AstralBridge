@@ -635,6 +635,13 @@
       </div>
     </div>
 
+    <!-- Strip on/off row -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+      <div style="flex:1;font-size:.78em;color:var(--text-muted)">LED Strip</div>
+      <button class="btn small" onclick="dlStripOff()">⬛ Off</button>
+      <button class="btn small primary" onclick="dlStripOn()">💡 On</button>
+    </div>
+
     <!-- Automatic content -->
     <div id="dl-auto-content">
       <div style="font-size:.78em;color:var(--text-muted);text-align:center;padding:20px 0">
@@ -680,6 +687,16 @@
 
     </div>
   </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+      <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin:0;">Combat Control</h3>
+      <button class="btn small danger" id="dl-ds-clear-btn" onclick="dlDsClear()" style="display:none;">✕ Clear Signal</button>
+    </div>
+    <p style="font-size:.78em;color:var(--text-muted);margin-bottom:12px;">Manually signal whose turn it is.</p>
+    <div id="dl-ds-combat" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+
 </div>
 
 <!-- DL: Events -->
@@ -803,9 +820,8 @@
   </div>
 
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="margin-bottom:14px;">
       <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin:0;">Player Seats</h3>
-      <button class="btn small danger" id="dl-ds-clear-btn" onclick="dlDsClear()" style="display:none;">✕ Clear Signal</button>
     </div>
     <div id="dl-ds-player-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
 
@@ -850,11 +866,6 @@
     </div>
   </div>
 
-  <div class="card">
-    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">Combat Control</h3>
-    <p style="font-size:.78em;color:var(--text-muted);margin-bottom:12px;">Manually signal whose turn it is.</p>
-    <div id="dl-ds-combat" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-  </div>
 
 </div>
 
@@ -1475,6 +1486,20 @@
     await fetch("/dl/api/dungeon-screen/manual-apply", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({on:true, color, fx, bri, sx})
+    });
+  }
+
+  async function dlStripOff() {
+    await fetch("/dl/api/dungeon-screen/manual-apply", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({on:false})
+    });
+  }
+
+  async function dlStripOn() {
+    await fetch("/dl/api/dungeon-screen/manual-apply", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({on:true})
     });
   }
 

@@ -358,7 +358,7 @@ async def dl_api_manual_apply(body: dict):
         return {"status": "no device"}
     on = bool(body.get("on", True))
     if not on:
-        await _dl_set(ip, {"on": False, "seg": [{"id": i, "on": False, "stop": 0} for i in range(0, 8)]})
+        await _dl_set(ip, {"on": False})
         return {"status": "ok"}
     color = body.get("color", [255, 255, 255])
     fx = int(body.get("fx", 0))
