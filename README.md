@@ -10,7 +10,7 @@ A two-part system that syncs **D&D Beyond** dice rolls into **FoundryVTT** as na
 D&D Beyond (browser) ──WebSocket──▶ Python Bridge ──WebSocket──▶ FoundryVTT Module
 ```
 
-1. **Python Bridge** (`bridge.py`) — connects to the D&D Beyond game log WebSocket, parses incoming rolls, and forwards them to all connected Foundry clients. Ships with a web dashboard at `http://host:8765`.
+1. **Python Bridge** (`bridge.py`, `dancing_lights.py`, `logger.py`) — connects to the D&D Beyond game log WebSocket, parses incoming rolls, and forwards them to all connected Foundry clients. Ships with a web dashboard at `http://host:8765`.
 2. **Foundry Module** (`/modules/astral-bridge/`) — receives rolls from the bridge and creates native Foundry chat rolls with the exact dice results from DDB.
 
 ---
@@ -30,6 +30,7 @@ D&D Beyond (browser) ──WebSocket──▶ Python Bridge ──WebSocket─�
 - Critical hit detection with gold ★ CRIT badge
 - Multi-target support with pre-selection of manually targeted tokens
 - **Web dashboard** — live log stream, roll statistics with charts, roll history with detail modal, config editor
+- **Dancing Lights** — WLED LED strip integration; triggers ambient lighting effects for dice events and combat turns; includes a dashboard with Automatic/Manual mode toggle for direct LED control
 
 ---
 
@@ -71,7 +72,7 @@ docker compose up -d
 
 ```bash
 pip install fastapi uvicorn websocket-client requests python-dotenv pydantic
-python bridge.py
+python3 bridge.py
 ```
 
 Web dashboard: `http://localhost:8765`
@@ -108,6 +109,28 @@ The bridge ships a built-in dashboard at `http://host:8765`:
 
 ---
 
+## Dancing Lights
+
+Optional WLED LED strip integration for physical ambiance at the table. Configure under the **Dancing Lights** section of the web dashboard.
+
+**Tabs:**
+
+- **Dashboard** — Automatic/Manual mode toggle. In Automatic mode, dice events and combat turns drive the LEDs. In Manual mode, automatic signals are suspended and you control the strip directly via preset buttons or a custom color/effect/brightness/speed editor.
+- **Events** — configure which roll events trigger animations (nat 20, nat 1, damage, heal, …) and set their color, effect, brightness, speed, and duration.
+- **Ambient** — define named ambient lighting modes (e.g. Tavern, Ocean, Hell) and activate one as the background layer.
+- **Config** — set the WLED device IP, total LED count, brightness, player segments, and corner preview positions.
+
+**Layer model** (highest wins):
+
+| Layer | Source |
+|-------|--------|
+| 2 — Roll | Triggered by dice events; auto-restores after duration |
+| 1 — Player | Combat turn signal mapped by character name |
+| 0 — Ambient | Persistent background mode |
+| — | Neutral (dim blue-white) |
+
+---
+
 ## Character Name Matching
 
 The Foundry module matches the character name from DDB against actor names in Foundry. If **Bichael May** rolls in DDB, the Foundry actor must also be named **Bichael May** for the speaker portrait to appear. The roll still posts to chat if no match is found.
@@ -117,7 +140,9 @@ The Foundry module matches the character name from DDB against actor names in Fo
 ## File Structure
 
 ```
-bridge.py                  # Python FastAPI bridge server
+bridge.py                  # Python FastAPI bridge server + DDB WebSocket client
+dancing_lights.py          # Dancing Lights logic, layer model, WLED API, routes
+logger.py                  # Shared log buffer and persistence
 Dockerfile                 # Docker image definition
 docker-compose.yml         # Docker Compose config
 templates/
@@ -125,6 +150,7 @@ templates/
 data/
   logs.jsonl               # Persistent log history (auto-created, gitignored)
   rolls.json               # Persistent roll history (auto-created, gitignored)
+  dancing_lights.json      # Dancing Lights config (auto-created, gitignored)
 
 modules/astral-bridge/
   module.json
