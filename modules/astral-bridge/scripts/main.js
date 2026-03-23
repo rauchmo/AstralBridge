@@ -277,6 +277,30 @@ function connectBridge(url) {
   socket.addEventListener("error", (err) => console.error(`${MODULE_ID} | Error:`, err));
 }
 
+function sendToBridge(payload) {
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(payload));
+  }
+}
+
+// ---------- Combat Turn Tracking ----------
+
+// ---------- Combat Turn Tracking ----------
+
+Hooks.on("combatTurn", (combat, updateData) => { _handleCombatAdvance(combat, updateData); });
+Hooks.on("combatRound", (combat, updateData) => { _handleCombatAdvance(combat, updateData); });
+
+function _handleCombatAdvance(combat, updateData) {
+  if (!game.user.isGM) return;
+  // combat.combatant reflects the OLD turn when the hook fires — use updateData for the new index
+  const newTurn   = updateData?.turn  ?? combat.turn;
+  const newRound  = updateData?.round ?? combat.round;
+  const combatant = combat.turns[newTurn];
+  if (!combatant) return;
+  const character = combatant.actor?.name ?? combatant.name ?? "";
+  sendToBridge({ type: "combat-turn", character, round: newRound, turn: newTurn });
+}
+
 // ---------- Target Picker ----------
 
 async function pickTarget(character, total, isCrit) {

@@ -22,14 +22,14 @@ DL_DEFAULT_EVENTS = {
 }
 
 DL_DS_AMBIENT_DEFAULTS = {
-    "taverne": {"color": [255, 120,  20], "fx":  2, "bri": 180, "sx": 100},
+    "tavern":  {"color": [255, 120,  20], "fx":  2, "bri": 180, "sx": 100},
     "dungeon": {"color": [  0,  20,  40], "fx": 38, "bri":  80, "sx":  60},
-    "wald":    {"color": [ 10,  80,  20], "fx": 58, "bri": 140, "sx":  80},
-    "hoelle":  {"color": [200,  20,   0], "fx": 25, "bri": 220, "sx": 180},
-    "ozean":   {"color": [  0,  60, 180], "fx": 13, "bri": 150, "sx":  90},
-    "magie":   {"color": [120,   0, 200], "fx": 38, "bri": 160, "sx": 100},
-    "eis":     {"color": [150, 200, 255], "fx":  2, "bri": 120, "sx":  70},
-    "kampf":   {"color": [180,   0,   0], "fx": 11, "bri": 200, "sx":  60},
+    "forest":  {"color": [ 10,  80,  20], "fx": 58, "bri": 140, "sx":  80},
+    "hell":    {"color": [200,  20,   0], "fx": 25, "bri": 220, "sx": 180},
+    "ocean":   {"color": [  0,  60, 180], "fx": 13, "bri": 150, "sx":  90},
+    "magic":   {"color": [120,   0, 200], "fx": 38, "bri": 160, "sx": 100},
+    "ice":     {"color": [150, 200, 255], "fx":  2, "bri": 120, "sx":  70},
+    "combat":  {"color": [180,   0,   0], "fx": 11, "bri": 200, "sx":  60},
 }
 
 _DL_DS_DEFAULT = {"ip": "", "total_leds": 60, "brightness": 180, "players": [], "corners": []}
@@ -38,6 +38,7 @@ _DL_DS_DEFAULT = {"ip": "", "total_leds": 60, "brightness": 180, "players": [], 
 _dl_ds_ambient_mode: Optional[str] = None
 _dl_ds_player_active: Optional[str] = None
 _dl_ds_roll_timer: Optional[asyncio.Task] = None
+_dl_manual_mode: bool = False
 
 # Extra segments 2-7 (segment 0=background strip, segment 1=player signal; 2-7 unused)
 _DL_DS_EXTRA_SEGS_OFF = [{"id": i, "on": False, "stop": 0} for i in range(2, 8)]
@@ -185,6 +186,8 @@ async def dl_trigger(event_name: str):
     """Layer 2: play a roll animation on the dungeon screen.
     Cancels any pending restore timer (rapid-fire safe), then restores via layer model.
     """
+    if _dl_manual_mode:
+        return
     global _dl_ds_roll_timer
     cfg = dl_load()
     if not cfg.get("enabled"):
@@ -254,6 +257,8 @@ async def dl_auto_signal(character: str):
     If no match (or auto_signal disabled), clear the player signal.
     Called on every roll and combat turn change from bridge.py.
     """
+    if _dl_manual_mode:
+        return
     global _dl_ds_player_active
     if not character:
         return
@@ -298,6 +303,15 @@ async def dl_ds_ambient_clear():
     await dl_ds_apply_current_layer()
 
 
+# ── Manual mode init ────────────────────────────────────────────────────────
+
+def _dl_load_manual_mode():
+    global _dl_manual_mode
+    _dl_manual_mode = dl_load().get("manual_mode", False)
+
+_dl_load_manual_mode()
+
+
 # ── API Router ─────────────────────────────────────────────────────────────
 
 router = APIRouter(prefix="/dl")
@@ -317,6 +331,49 @@ async def dl_api_set_config(body: dict):
     dl_save(cfg)
     return {"enabled": cfg["enabled"]}
 
+
+@router.get("/api/mode")
+async def dl_api_get_mode():
+    return {"manual": _dl_manual_mode}
+
+
+@router.post("/api/mode")
+async def dl_api_set_mode(body: dict):
+    global _dl_manual_mode
+    manual = bool(body.get("manual", False))
+    _dl_manual_mode = manual
+    cfg = dl_load()
+    cfg["manual_mode"] = manual
+    dl_save(cfg)
+    if not manual:
+        await dl_ds_apply_current_layer()
+    return {"manual": _dl_manual_mode}
+
+
+@router.post("/api/dungeon-screen/manual-apply")
+async def dl_api_manual_apply(body: dict):
+    ds = dl_get_ds()
+    ip = ds.get("ip", "")
+    if not ip:
+        return {"status": "no device"}
+    on = bool(body.get("on", True))
+    if not on:
+        await _dl_set(ip, {"on": False, "seg": [{"id": i, "on": False, "stop": 0} for i in range(0, 8)]})
+        return {"status": "ok"}
+    color = body.get("color", [255, 255, 255])
+    fx = int(body.get("fx", 0))
+    bri = int(body.get("bri", ds.get("brightness", 180)))
+    sx = int(body.get("sx", 128))
+    state = {
+        "on": True,
+        "bri": bri,
+        "seg": [
+            {"id": 0, "col": [color, [0, 0, 0], [0, 0, 0]], "fx": fx, "sx": sx, "on": True},
+            *[{"id": i, "on": False, "stop": 0} for i in range(1, 8)],
+        ],
+    }
+    await _dl_set(ip, state)
+    return {"status": "ok"}
 
 
 @router.get("/api/events")

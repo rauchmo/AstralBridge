@@ -479,9 +479,10 @@
 
   <!-- Dancing Lights tabs -->
   <div class="tabs" id="tabs-dl" style="display:none;">
-    <button class="tab-btn active" id="tab-dl-events"   onclick="switchDlTab('events')">Events</button>
-    <button class="tab-btn"        id="tab-dl-ambiente" onclick="switchDlTab('ambiente')">Ambiente</button>
-    <button class="tab-btn"        id="tab-dl-dungeon"  onclick="switchDlTab('dungeon')">Dungeon Screen</button>
+    <button class="tab-btn"        id="tab-dl-dashboard" onclick="switchDlTab('dashboard')">Dashboard</button>
+    <button class="tab-btn active" id="tab-dl-events"    onclick="switchDlTab('events')">Events</button>
+    <button class="tab-btn"        id="tab-dl-ambient"   onclick="switchDlTab('ambient')">Ambient</button>
+    <button class="tab-btn"        id="tab-dl-config"    onclick="switchDlTab('config')">Config</button>
   </div>
 
   <div class="status-row">
@@ -618,6 +619,69 @@
 
 <!-- ══ DANCING LIGHTS VIEWS ══════════════════════════════════════════════ -->
 
+<!-- DL: Dashboard -->
+<div id="view-dl-dashboard" class="dl-view">
+  <div class="card">
+
+    <!-- Mode toggle row -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+      <div style="flex:1">
+        <div style="font-size:.75em;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:3px">Mode</div>
+        <div id="dl-mode-label" style="font-size:.95em;color:var(--text)">Automatic</div>
+        <div id="dl-mode-desc"  style="font-size:.78em;color:var(--text-muted);margin-top:2px">Events &amp; combat turns run automatically</div>
+      </div>
+      <div id="dl-mode-toggle" onclick="dlToggleMode()" style="width:52px;height:28px;background:#1a3a1a;border:1px solid #2a7a2a;border-radius:14px;cursor:pointer;position:relative;transition:background .2s">
+        <div id="dl-mode-knob" style="width:22px;height:22px;background:#4c4;border-radius:50%;position:absolute;top:2px;left:26px;transition:left .2s"></div>
+      </div>
+    </div>
+
+    <!-- Automatic content -->
+    <div id="dl-auto-content">
+      <div style="font-size:.78em;color:var(--text-muted);text-align:center;padding:20px 0">
+        <div style="font-size:1.6em;margin-bottom:8px">⚡</div>
+        Automatic mode active — dice rolls &amp; combat turns control the LEDs
+      </div>
+    </div>
+
+    <!-- Manual content -->
+    <div id="dl-manual-content" style="display:none">
+
+      <!-- Presets -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:.7em;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:8px">Presets</div>
+        <div id="dl-preset-buttons" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+
+      <!-- Custom editor -->
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-size:.7em;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:10px">Custom</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:.82em">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:80px;color:var(--text-muted)">Color</span>
+            <input type="color" id="dl-custom-color" value="#ffffff" style="cursor:pointer;border:none;background:none" oninput="dlCustomChanged()">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:80px;color:var(--text-muted)">Effect</span>
+            <select id="dl-custom-fx" style="font-size:.9em;padding:2px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px" onchange="dlCustomChanged()"></select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:80px;color:var(--text-muted)">Brightness</span>
+            <input type="range" id="dl-custom-bri" min="10" max="255" value="180" style="width:120px" oninput="dlCustomBriLabel.textContent=this.value; dlCustomChanged()">
+            <span style="width:30px;color:var(--text-muted)" id="dlCustomBriLabel">180</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:80px;color:var(--text-muted)">Speed</span>
+            <input type="range" id="dl-custom-sx" min="0" max="255" value="128" style="width:120px" oninput="dlCustomSxLabel.textContent=this.value; dlCustomChanged()">
+            <span style="width:30px;color:var(--text-muted)" id="dlCustomSxLabel">128</span>
+          </div>
+          <button class="btn small" onclick="dlCustomApply()">Apply</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- DL: Events -->
 <div id="view-dl-events" class="dl-view">
   <div class="card">
@@ -630,53 +694,53 @@
 
     <!-- Add Event form -->
     <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
-      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:10px;">Neues Event hinzufügen</div>
+      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:10px;">Add new event</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Key (slug)</label>
-          <input type="text" id="dl-add-ev-key" placeholder="z.B. schaden_feuer" style="width:100%;"></div>
+          <input type="text" id="dl-add-ev-key" placeholder="e.g. fire_damage" style="width:100%;"></div>
         <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Label</label>
-          <input type="text" id="dl-add-ev-label" placeholder="Feuerschaden" style="width:100%;"></div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Farbe</label>
+          <input type="text" id="dl-add-ev-label" placeholder="Fire Damage" style="width:100%;"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Color</label>
           <input type="color" id="dl-add-ev-color" value="#ff3200"></div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effekt</label>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
           <select id="dl-add-ev-fx" style="font-size:.85em;width:100%;"></select></div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Helligkeit</label>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Brightness</label>
           <input type="number" id="dl-add-ev-bri" value="200" min="0" max="255" style="width:80px;"></div>
         <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Speed</label>
           <input type="number" id="dl-add-ev-spd" value="150" min="0" max="255" style="width:80px;"></div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Dauer (ms)</label>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Duration (ms)</label>
           <input type="number" id="dl-add-ev-dur" value="2000" min="500" max="10000" step="100" style="width:100px;"></div>
         <div style="display:flex;align-items:flex-end;">
           <label class="dl-toggle">
             <input type="checkbox" id="dl-add-ev-en" checked>
             <div class="dl-toggle-track"></div>
-            <span class="dl-toggle-label">Aktiv</span>
+            <span class="dl-toggle-label">Active</span>
           </label>
         </div>
       </div>
-      <button class="btn primary small" onclick="dlAddEvent()">Event hinzufügen</button>
+      <button class="btn primary small" onclick="dlAddEvent()">Add event</button>
     </div>
   </div>
 </div>
 
-<!-- DL: Ambiente -->
-<div id="view-dl-ambiente" class="dl-view">
+<!-- DL: Ambient -->
+<div id="view-dl-ambient" class="dl-view">
   <div class="card">
-    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">AMBIENTE</h3>
-    <p style="font-size:.82em;color:var(--text-muted);margin-bottom:14px;">Wähle einen Ambiente-Modus oder schalte ihn aus. Der aktive Modus spielt kontinuierlich, wenn keine Animation läuft.</p>
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">AMBIENT</h3>
+    <p style="font-size:.82em;color:var(--text-muted);margin-bottom:14px;">Select an ambient mode or turn it off. The active mode plays continuously when no animation is running.</p>
     <div id="dl-ambient-btns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
 
     <!-- Inline editor (shown when a mode is selected) -->
     <div id="dl-ambient-editor" style="display:none;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:14px;">
-      <div style="font-size:.75em;color:var(--text-muted);margin-bottom:8px;" id="dl-ambient-editor-label">Modus</div>
+      <div style="font-size:.75em;color:var(--text-muted);margin-bottom:8px;" id="dl-ambient-editor-label">Mode</div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <label style="font-size:.8em;color:var(--text-muted);">Farbe
+        <label style="font-size:.8em;color:var(--text-muted);">Color
           <input type="color" id="dl-ambient-color" style="margin-left:6px;cursor:pointer;" oninput="dlAmbientPatch()">
         </label>
-        <label style="font-size:.8em;color:var(--text-muted);">Effekt
+        <label style="font-size:.8em;color:var(--text-muted);">Effect
           <select id="dl-ambient-fx" style="margin-left:6px;font-size:.85em;" onchange="dlAmbientPatch()"></select>
         </label>
-        <label style="font-size:.8em;color:var(--text-muted);">Helligkeit
+        <label style="font-size:.8em;color:var(--text-muted);">Brightness
           <input type="range" id="dl-ambient-bri" min="10" max="255" style="width:80px;margin-left:6px;" oninput="dlAmbientPatch()">
         </label>
         <label style="font-size:.8em;color:var(--text-muted);">Speed
@@ -687,31 +751,31 @@
 
     <!-- Add Mode form -->
     <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
-      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:8px;">Neuen Modus hinzufügen</div>
+      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:8px;">Add new mode</div>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
         <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Name (slug)</label>
-          <input type="text" id="dl-add-amb-name" placeholder="z.B. stadt" style="width:100px;">
+          <input type="text" id="dl-add-amb-name" placeholder="e.g. city" style="width:100px;">
         </div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Farbe</label>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Color</label>
           <input type="color" id="dl-add-amb-color" value="#7c5cbf">
         </div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effekt</label>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
           <select id="dl-add-amb-fx" style="font-size:.85em;"></select>
         </div>
-        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Helligkeit</label>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Brightness</label>
           <input type="number" id="dl-add-amb-bri" value="150" min="10" max="255" style="width:60px;">
         </div>
         <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Speed</label>
           <input type="number" id="dl-add-amb-sx" value="100" min="10" max="255" style="width:60px;">
         </div>
-        <button class="btn primary small" onclick="dlAddAmbientMode()">Hinzufügen</button>
+        <button class="btn primary small" onclick="dlAddAmbientMode()">Add</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- DL: Dungeon Screen -->
-<div id="view-dl-dungeon" class="dl-view">
+<!-- DL: Config (formerly Dungeon Screen) -->
+<div id="view-dl-config" class="dl-view">
 
   <div class="card">
     <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">Dungeon Screen Device</h3>
@@ -1238,7 +1302,7 @@
         if (el) { el.classList.remove("active"); el.style.display = "none"; }
       });
       document.querySelectorAll(".dl-view").forEach(el => { el.style.display=""; el.classList.remove("active"); });
-      switchDlTab(_activeDlTab || "events");
+      switchDlTab(_activeDlTab || "dashboard");
       dlLoadAll();
       startDlPolling();
     }
@@ -1269,19 +1333,19 @@
 
   function switchDlTab(tab) {
     _activeDlTab = tab;
-    ["events","ambiente","dungeon"].forEach(t => {
+    ["dashboard","events","ambient","config"].forEach(t => {
       const view = document.getElementById(`view-dl-${t}`);
       const btn  = document.getElementById(`tab-dl-${t}`);
       if (view) view.classList.toggle("active", t === tab);
       if (btn)  btn.classList.toggle("active", t === tab);
     });
-    if (tab === "dungeon") {
+    if (tab === "config") {
       requestAnimationFrame(() => { dlDrawStrip(); dlDrawScreen(); dlInitCanvas(); });
     }
   }
 
   async function dlLoadAll() {
-    await Promise.all([dlLoadDlConfig(), dlLoadEvents(), dlLoadDs(), dlLoadAmbient()]);
+    await Promise.all([dlLoadDlConfig(), dlLoadEvents(), dlLoadDs(), dlLoadAmbient(), dlLoadDashboard()]);
   }
 
   let _dlPollInterval = null;
@@ -1305,10 +1369,119 @@
     _dlPollInterval = null;
   }
 
-  // ─── Ambiente ─────────────────────────────────────────────────
+  // ─── Dashboard ────────────────────────────────────────────────
+
+  let _dlManualMode    = false;
+  let _dlCustomDebounce = null;
+  let _dlActivePreset   = null;
+
+  async function dlLoadDashboard() {
+    const data = await fetch("/dl/api/mode").then(r => r.json()).catch(() => null);
+    if (data) _dlManualMode = data.manual;
+    dlUpdateModeUI(_dlManualMode);
+    // Populate custom effect dropdown
+    const fxSel = document.getElementById("dl-custom-fx");
+    if (fxSel && !fxSel.options.length) {
+      fxSel.innerHTML = DL_EFFECTS.map(([id,name]) => `<option value="${id}">${name}</option>`).join("");
+    }
+    // Init brightness from _dlData
+    const briInput = document.getElementById("dl-custom-bri");
+    if (briInput) {
+      briInput.value = _dlData.brightness || 180;
+      document.getElementById("dlCustomBriLabel").textContent = briInput.value;
+    }
+    if (!Object.keys(_dlAmbientModes).length) await dlLoadAmbient();
+    dlRenderPresetButtons();
+  }
+
+  function dlUpdateModeUI(manual) {
+    document.getElementById("dl-mode-label").textContent = manual ? "Manual" : "Automatic";
+    document.getElementById("dl-mode-desc").textContent  = manual ? "You control the LEDs directly" : "Events & combat turns run automatically";
+    const toggle = document.getElementById("dl-mode-toggle");
+    const knob   = document.getElementById("dl-mode-knob");
+    toggle.style.background  = manual ? "#3a1a1a" : "#1a3a1a";
+    toggle.style.borderColor = manual ? "#7a2a2a" : "#2a7a2a";
+    knob.style.background    = manual ? "#c44"    : "#4c4";
+    knob.style.left          = manual ? "2px"     : "26px";
+    document.getElementById("dl-auto-content").style.display   = manual ? "none" : "";
+    document.getElementById("dl-manual-content").style.display = manual ? ""     : "none";
+  }
+
+  async function dlToggleMode() {
+    const data = await fetch("/dl/api/mode", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({manual: !_dlManualMode})
+    }).then(r => r.json()).catch(() => null);
+    if (data != null) {
+      _dlManualMode = data.manual;
+      dlUpdateModeUI(_dlManualMode);
+    }
+  }
+
+  function dlRenderPresetButtons() {
+    const container = document.getElementById("dl-preset-buttons");
+    if (!container) return;
+    const icons = {tavern:"🍺",dungeon:"🌑",forest:"🌲",hell:"🔥",ocean:"🌊",magic:"✨",ice:"❄️",combat:"⚔️"};
+    let html = "";
+    for (const key of Object.keys(_dlAmbientModes)) {
+      const label = DL_AMBIENT_LABELS[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+      const icon  = icons[key] ? icons[key] + " " : "";
+      html += `<button class="btn small" id="dl-preset-${key}" onclick="dlApplyPreset('${key}')">${icon}${label}</button>`;
+    }
+    html += `<button class="btn small" id="dl-preset-off" onclick="dlApplyPreset('off')">⬛ Off</button>`;
+    container.innerHTML = html;
+  }
+
+  async function dlApplyPreset(key) {
+    _dlActivePreset = key;
+    document.querySelectorAll("#dl-preset-buttons .btn").forEach(b => b.style.outline = "");
+    const btn = document.getElementById(`dl-preset-${key}`);
+    if (btn) btn.style.outline = "2px solid var(--accent, #6060ff)";
+    if (key === "off") {
+      await fetch("/dl/api/dungeon-screen/manual-apply", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:false})});
+      return;
+    }
+    const mode = _dlAmbientModes[key];
+    if (!mode) return;
+    clearTimeout(_dlCustomDebounce);
+    const colorEl = document.getElementById("dl-custom-color");
+    const fxEl    = document.getElementById("dl-custom-fx");
+    const briEl   = document.getElementById("dl-custom-bri");
+    const sxEl    = document.getElementById("dl-custom-sx");
+    if (colorEl) colorEl.value = dlRgbToHex(mode.color || [255,255,255]);
+    if (fxEl)    fxEl.value    = mode.fx ?? 0;
+    if (briEl)   { briEl.value = mode.bri ?? 180; document.getElementById("dlCustomBriLabel").textContent = briEl.value; }
+    if (sxEl)    { sxEl.value  = mode.sx  ?? 128; document.getElementById("dlCustomSxLabel").textContent  = sxEl.value; }
+    await fetch("/dl/api/dungeon-screen/manual-apply", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({on:true, color: mode.color || [255,255,255], fx: mode.fx ?? 0, bri: mode.bri ?? 180, sx: mode.sx ?? 128})
+    });
+  }
+
+  function dlCustomChanged() {
+    _dlActivePreset = null;
+    document.querySelectorAll("#dl-preset-buttons .btn").forEach(b => b.style.outline = "");
+    clearTimeout(_dlCustomDebounce);
+    _dlCustomDebounce = setTimeout(dlCustomApply, 150);
+  }
+
+  async function dlCustomApply() {
+    clearTimeout(_dlCustomDebounce);
+    const color = dlHexToRgb(document.getElementById("dl-custom-color").value);
+    const fx    = parseInt(document.getElementById("dl-custom-fx").value);
+    const bri   = parseInt(document.getElementById("dl-custom-bri").value);
+    const sx    = parseInt(document.getElementById("dl-custom-sx").value);
+    await fetch("/dl/api/dungeon-screen/manual-apply", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({on:true, color, fx, bri, sx})
+    });
+  }
+
+  // ─── Ambient ──────────────────────────────────────────────────
   const DL_AMBIENT_LABELS = {
-    taverne:"Taverne", dungeon:"Dungeon", wald:"Wald", hoelle:"Hölle",
-    ozean:"Ozean", magie:"Magie", eis:"Eis", kampf:"Kampf"
+    tavern:"Tavern", dungeon:"Dungeon", forest:"Forest", hell:"Hell",
+    ocean:"Ocean", magic:"Magic", ice:"Ice", combat:"Combat"
   };
 
   let _dlAmbientModes = {};
@@ -1407,9 +1580,9 @@
   }
 
   async function dlDeleteAmbientMode(key) {
-    if (!confirm(`Modus "${DL_AMBIENT_LABELS[key] || key}" wirklich löschen?`)) return;
+    if (!confirm(`Delete mode "${DL_AMBIENT_LABELS[key] || key}"?`)) return;
     const r = await fetch(`/dl/api/dungeon-screen/ambient/${key}`, {method:"DELETE"});
-    if (!r.ok) { toast("Fehler beim Löschen."); return; }
+    if (!r.ok) { toast("Error deleting."); return; }
     delete _dlAmbientModes[key];
     if (_dlData.current_ambient === key) {
       _dlData.current_ambient = null;
@@ -1417,13 +1590,13 @@
       document.getElementById("dl-ambient-editor").style.display = "none";
     }
     dlRenderAmbientButtons();
-    toast(`Modus "${DL_AMBIENT_LABELS[key] || key}" gelöscht.`);
+    toast(`Mode "${DL_AMBIENT_LABELS[key] || key}" deleted.`);
   }
 
   async function dlAddAmbientMode() {
     const name = document.getElementById("dl-add-amb-name").value.trim().toLowerCase().replace(/[^a-z0-9_]/g,"");
-    if (!name) { toast("Bitte einen gültigen Namen eingeben."); return; }
-    if (_dlAmbientModes[name]) { toast(`Modus "${name}" existiert bereits.`); return; }
+    if (!name) { toast("Please enter a valid name."); return; }
+    if (_dlAmbientModes[name]) { toast(`Mode "${name}" already exists.`); return; }
     const hex = document.getElementById("dl-add-amb-color").value;
     const color = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
     const fx = parseInt(document.getElementById("dl-add-amb-fx").value);
@@ -1433,11 +1606,11 @@
       method:"PUT", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({color, fx, bri, sx})
     });
-    if (!r.ok) { toast("Fehler beim Hinzufügen."); return; }
+    if (!r.ok) { toast("Error adding."); return; }
     _dlAmbientModes[name] = {color, fx, bri, sx};
     document.getElementById("dl-add-amb-name").value = "";
     dlRenderAmbientButtons();
-    toast(`Modus "${name}" hinzugefügt.`);
+    toast(`Mode "${name}" added.`);
   }
 
   // ─── DL Config (enabled flag) ────────────────────────────────
@@ -1522,18 +1695,18 @@
   }
 
   async function dlDeleteEvent(key) {
-    if (!confirm(`Event "${_dlEvents[key]?.label || key}" wirklich löschen?`)) return;
+    if (!confirm(`Delete event "${_dlEvents[key]?.label || key}"?`)) return;
     const r = await fetch(`/dl/api/events/${key}`, {method:"DELETE"});
-    if (!r.ok) { toast("Fehler beim Löschen."); return; }
+    if (!r.ok) { toast("Error deleting."); return; }
     delete _dlEvents[key];
     dlRenderEvents(_dlEvents);
-    toast(`Event "${key}" gelöscht.`);
+    toast(`Event "${key}" deleted.`);
   }
 
   async function dlAddEvent() {
     const key = document.getElementById("dl-add-ev-key").value.trim().toLowerCase().replace(/[^a-z0-9_]/g,"");
-    if (!key) { toast("Bitte einen gültigen Key eingeben."); return; }
-    if (_dlEvents[key]) { toast(`Event "${key}" existiert bereits.`); return; }
+    if (!key) { toast("Please enter a valid key."); return; }
+    if (_dlEvents[key]) { toast(`Event "${key}" already exists.`); return; }
     const label  = document.getElementById("dl-add-ev-label").value.trim() || key;
     const color  = dlHexToRgb(document.getElementById("dl-add-ev-color").value);
     const effect = parseInt(document.getElementById("dl-add-ev-fx").value);
@@ -1545,12 +1718,12 @@
     const r = await fetch(`/dl/api/events/${key}`, {
       method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
     });
-    if (!r.ok) { toast("Fehler beim Hinzufügen."); return; }
+    if (!r.ok) { toast("Error adding."); return; }
     _dlEvents[key] = body;
     document.getElementById("dl-add-ev-key").value = "";
     document.getElementById("dl-add-ev-label").value = "";
     dlRenderEvents(_dlEvents);
-    toast(`Event "${key}" hinzugefügt.`);
+    toast(`Event "${key}" added.`);
   }
 
   // ─── DL Dungeon Screen ───────────────────────────────────────

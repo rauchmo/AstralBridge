@@ -13,49 +13,56 @@ import requests
 import uvicorn
 import websocket
 from dotenv import load_dotenv, set_key
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
+import logger
+from logger import DATA_DIR, log, log_buffer, log_subscribers
+from dancing_lights import (
+    router as dl_router,
+    dl_detect_event,
+    dl_trigger,
+    dl_auto_signal,
+)
+
 ENV_PATH = Path(os.environ.get("ENV_PATH", str((Path(__file__).parent / "../.env").resolve())))
 load_dotenv(dotenv_path=ENV_PATH)
 
-# ---------- Persistence ----------
-
-DATA_DIR  = (Path(__file__).parent / "data").resolve()
-DATA_DIR.mkdir(exist_ok=True)
-LOG_FILE   = DATA_DIR / "logs.jsonl"
-ROLLS_FILE = DATA_DIR / "rolls.json"
-
-_log_file_lock = threading.Lock()
+ROLLS_FILE    = DATA_DIR / "rolls.json"
+WEBHOOKS_FILE = DATA_DIR / "webhooks.json"
 
 
-def _load_persisted_logs(buf: deque):
-    if not LOG_FILE.exists():
+# ---------- Webhooks ----------
+
+def _load_webhooks() -> list[str]:
+    if not WEBHOOKS_FILE.exists():
+        return []
+    try:
+        return json.loads(WEBHOOKS_FILE.read_text())
+    except Exception:
+        return []
+
+
+def _save_webhooks(urls: list[str]):
+    WEBHOOKS_FILE.write_text(json.dumps(urls, indent=2))
+
+
+def dispatch_webhooks(payload: dict):
+    urls = _load_webhooks()
+    if not urls:
         return
-    try:
-        lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
-        for line in lines[-buf.maxlen:]:
+    def _send():
+        for url in urls:
             try:
-                buf.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
-    except Exception:
-        pass
+                requests.post(url, json=payload, timeout=5)
+            except Exception as e:
+                log("warn", f"Webhook to {url} failed: {e}")
+    threading.Thread(target=_send, daemon=True).start()
 
 
-def _append_log_file(entry: dict):
-    with _log_file_lock:
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    # Rotate if file exceeds 5 MB
-    try:
-        if LOG_FILE.stat().st_size > 5 * 1024 * 1024:
-            LOG_FILE.replace(LOG_FILE.with_suffix(".jsonl.bak"))
-    except Exception:
-        pass
-
+# ---------- Persistence: Rolls ----------
 
 def _load_persisted_rolls(history: deque, index: dict):
     if not ROLLS_FILE.exists():
@@ -77,26 +84,6 @@ def _save_rolls(history: deque, index: dict):
         print(f"[persist] Failed to save rolls: {e}", flush=True)
 
 
-# ---------- Logging ----------
-
-log_buffer: deque = deque(maxlen=500)
-log_subscribers: list = []
-main_event_loop = None
-_load_persisted_logs(log_buffer)
-
-
-def log(level: str, msg: str, extra: dict = None):
-    entry = {"ts": datetime.now().strftime("%H:%M:%S"), "level": level, "msg": msg}
-    if extra:
-        entry.update(extra)
-    log_buffer.append(entry)
-    _append_log_file(entry)
-    print(f"[{entry['ts']}] [{level.upper()}] {msg}", flush=True)
-    if main_event_loop and main_event_loop.is_running():
-        for q in list(log_subscribers):
-            main_event_loop.call_soon_threadsafe(q.put_nowait, entry)
-
-
 # ---------- State ----------
 
 foundry_clients: set = set()
@@ -104,7 +91,6 @@ ddb_ws_instance = None
 ddb_connected = False
 _reconnect_enabled = True
 
-# Roll history: compact summary list + full data index keyed by roll ID
 roll_history: deque = deque(maxlen=100)
 roll_index: dict = {}
 _load_persisted_rolls(roll_history, roll_index)
@@ -169,7 +155,6 @@ def on_message(ws, message):
 
             roll_id = data.get("id", datetime.now().isoformat())
 
-            # Compact summary stored in the history list
             summary = {
                 "id":         roll_id,
                 "ts":         datetime.now().strftime("%H:%M:%S"),
@@ -185,11 +170,9 @@ def on_message(ws, message):
                 "constant":   roll.constant,
             }
 
-            # Full entry includes raw DDB payload
             roll_index[roll_id] = {**summary, "raw": data}
             roll_history.appendleft(summary)
 
-            # Trim index to match history size
             if len(roll_index) > 110:
                 oldest = next(iter(roll_index))
                 del roll_index[oldest]
@@ -209,12 +192,19 @@ def on_message(ws, message):
                 "constant":  roll.constant,
                 "dice":      roll.dice,
             }
-            if main_event_loop and main_event_loop.is_running():
+            dispatch_webhooks(msg)
+            if logger.main_event_loop and logger.main_event_loop.is_running():
                 future = asyncio.run_coroutine_threadsafe(
-                    broadcast_to_foundry(msg), main_event_loop
+                    broadcast_to_foundry(msg), logger.main_event_loop
                 )
                 future.add_done_callback(
                     lambda f: log("error", f"Broadcast error: {f.exception()}") if f.exception() else None
+                )
+                dl_ev = dl_detect_event(msg)
+                if dl_ev:
+                    asyncio.run_coroutine_threadsafe(dl_trigger(dl_ev), logger.main_event_loop)
+                asyncio.run_coroutine_threadsafe(
+                    dl_auto_signal(msg.get("character", "")), logger.main_event_loop
                 )
         except Exception as e:
             log("error", f"Error parsing roll: {e}")
@@ -271,10 +261,15 @@ def start_ddb_client():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global main_event_loop
-    main_event_loop = asyncio.get_event_loop()
+    logger.main_event_loop = asyncio.get_event_loop()
     log("info", "Bridge server started — Web UI at http://0.0.0.0:8765")
     start_ddb_client()
+    # Restore ambient mode from last session
+    from dancing_lights import dl_load, dl_ds_ambient_set
+    cfg = dl_load()
+    mode = cfg.get("dungeon_screen", {}).get("current_ambient")
+    if mode:
+        await dl_ds_ambient_set(mode)
     yield
 
 
@@ -282,9 +277,10 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(dl_router)
 
 
 @app.websocket("/ws")
@@ -294,7 +290,13 @@ async def foundry_ws(ws: WebSocket):
     log("info", f"Foundry client connected: {ws.client}")
     try:
         while True:
-            await ws.receive_text()
+            raw = await ws.receive_text()
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                continue
+            if msg.get("type") == "combat-turn":
+                asyncio.create_task(dl_auto_signal(msg.get("character", "")))
     except WebSocketDisconnect:
         pass
     finally:
@@ -321,7 +323,6 @@ async def api_rolls():
 async def api_roll_detail(roll_id: str):
     entry = roll_index.get(roll_id)
     if not entry:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Roll not found")
     return entry
 
@@ -373,8 +374,6 @@ async def api_update_config(cfg: ConfigUpdate):
     return {"status": "ok"}
 
 
-
-
 @app.get("/api/character/{entity_id}")
 async def api_character(entity_id: str):
     cobalt_token = os.environ.get("DDB_COBALT_TOKEN", "")
@@ -398,7 +397,6 @@ async def api_character(entity_id: str):
         override_hp  = data.get("overrideHitPoints")
         level        = sum((c.get("level") or 0) for c in data.get("classes", []))
 
-        # Parse HP modifiers from race/class/feat/background
         modifier_hp = 0
         for source_mods in data.get("modifiers", {}).values():
             for mod in source_mods:
@@ -419,15 +417,14 @@ async def api_character(entity_id: str):
         }
     except Exception as e:
         log("warn", f"Failed to fetch character {entity_id}: {e}")
-        from fastapi import HTTPException
         raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.delete("/api/logs")
 async def api_clear_logs():
     log_buffer.clear()
-    with _log_file_lock:
-        LOG_FILE.write_text("", encoding="utf-8")
+    with logger._log_file_lock:
+        logger.LOG_FILE.write_text("", encoding="utf-8")
     log("info", "Logs cleared.")
     return {"status": "ok"}
 
@@ -443,7 +440,6 @@ async def api_clear_rolls():
 
 @app.post("/api/rolls/{roll_id}/resend")
 async def api_resend_roll(roll_id: str):
-    from fastapi import HTTPException
     entry = roll_index.get(roll_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Roll not found")
@@ -462,6 +458,33 @@ async def api_resend_roll(roll_id: str):
     return {"status": "ok"}
 
 
+@app.get("/api/webhooks")
+async def api_get_webhooks():
+    return _load_webhooks()
+
+
+@app.post("/api/webhooks")
+async def api_add_webhook(body: dict):
+    url = (body.get("url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="url required")
+    urls = _load_webhooks()
+    if url not in urls:
+        urls.append(url)
+        _save_webhooks(urls)
+    return urls
+
+
+@app.delete("/api/webhooks/{index}")
+async def api_delete_webhook(index: int):
+    urls = _load_webhooks()
+    if index < 0 or index >= len(urls):
+        raise HTTPException(status_code=404, detail="Index out of range")
+    urls.pop(index)
+    _save_webhooks(urls)
+    return urls
+
+
 @app.post("/api/restart")
 async def api_restart():
     global ddb_ws_instance, ddb_connected, _reconnect_enabled
@@ -478,6 +501,8 @@ async def api_restart():
     threading.Thread(target=start_ddb_client, daemon=True).start()
     return {"status": "restarting"}
 
+
+# ---------- Main ----------
 
 def _watch_quit():
     print("Press Q + Enter to stop.", flush=True)
