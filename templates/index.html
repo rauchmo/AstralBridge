@@ -330,21 +330,170 @@
       font-family: var(--sans); font-weight: 500;
     }
     #toast.err { color: var(--red); border-color: rgba(240,82,82,0.3); }
+
+    /* ── Module Picker ──────────────────────────────────────────── */
+    .module-pick { position: relative; }
+    .module-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 10px; cursor: pointer;
+      color: var(--text); font-family: var(--sans); font-size: 0.82em; font-weight: 600;
+      transition: border-color 0.15s, background 0.15s; white-space: nowrap;
+    }
+    .module-btn:hover { border-color: var(--border-2); background: var(--border); }
+    .mod-arrow { color: var(--text-muted); font-size: 0.8em; transition: transform 0.15s; }
+    .module-pick.open .mod-arrow { transform: rotate(180deg); }
+    .module-drop {
+      display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 200;
+      background: var(--surface); border: 1px solid var(--border-2); border-radius: 8px;
+      padding: 4px; min-width: 210px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .module-pick.open .module-drop { display: block; }
+    .module-opt {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 5px;
+      cursor: pointer; font-size: 0.82em; color: var(--text-muted);
+      transition: background 0.12s, color 0.12s;
+    }
+    .module-opt:hover { background: var(--surface-2); color: var(--text); }
+    .module-opt.active { color: var(--text); background: var(--accent-dim); }
+    .mod-opt-sub { font-size: 0.72em; color: var(--text-dim); }
+    .dl-badge {
+      margin-left: auto; font-size: 0.7em; font-weight: 700; letter-spacing: 0.04em;
+      padding: 1px 6px; border-radius: 10px;
+      background: var(--red-dim); color: var(--red); border: 1px solid rgba(240,82,82,0.2);
+    }
+    .dl-badge.on { background: var(--green-dim); color: var(--green); border-color: rgba(52,208,104,0.2); }
+
+    /* DL header enable toggle */
+    .dl-hdr-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .dl-hdr-toggle input { display: none; }
+    .dl-track {
+      width: 34px; height: 18px; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 9px; position: relative; transition: all 0.2s; flex-shrink: 0;
+    }
+    .dl-track::after {
+      content: ''; position: absolute; width: 12px; height: 12px;
+      background: var(--text-muted); border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s;
+    }
+    .dl-hdr-toggle input:checked + .dl-track { background: rgba(52,208,104,0.2); border-color: var(--green); }
+    .dl-hdr-toggle input:checked + .dl-track::after { transform: translateX(16px); background: var(--green); }
+    .dl-hdr-label { font-size: 0.75em; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .dl-hdr-toggle input:checked ~ .dl-hdr-label { color: var(--green); }
+
+    /* ── Dancing Lights views ───────────────────────────────────── */
+    .dl-view {
+      display: none; flex: 1; overflow-y: auto; padding: 24px;
+      flex-direction: column; gap: 14px; max-width: 900px; margin: 0 auto; width: 100%;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .dl-view.active { display: flex; }
+
+    /* DL device cards */
+    .dl-device {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 11px 14px; display: flex; align-items: center; gap: 12px;
+    }
+    .dl-dev-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+    .dl-dev-dot.online { background: var(--green); box-shadow: 0 0 6px rgba(52,208,104,0.5); }
+    .dl-dev-dot.offline { background: var(--red); }
+    .dl-dev-info { flex: 1; min-width: 0; }
+    .dl-dev-name { font-weight: 600; font-size: 0.9em; }
+    .dl-dev-ip { font-size: 0.75em; color: var(--text-muted); font-family: var(--mono); }
+    .dl-dev-meta { font-size: 0.72em; color: var(--accent); margin-top: 1px; }
+
+    /* DL event grid */
+    .dl-event-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 620px) { .dl-event-grid { grid-template-columns: 1fr; } }
+    .dl-event-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .dl-ev-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .dl-ev-icon { font-size: 1.25em; }
+    .dl-ev-name { flex: 1; font-weight: 600; font-size: 0.9em; }
+    .dl-ev-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .dl-ev-row label { width: 70px; font-size: 0.78em; color: var(--text-muted); margin: 0; flex-shrink: 0; display: block; }
+    .dl-slider-val { font-size: 0.72em; color: var(--accent); min-width: 26px; text-align: right; flex-shrink: 0; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    input[type="number"] {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); padding: 5px 8px; font-family: var(--mono); font-size: 0.78em;
+      width: 100%; transition: border-color 0.15s;
+    }
+    input[type="number"]:focus { outline: none; border-color: var(--accent); }
+    input[type="color"] { width: 34px; height: 28px; border: 1px solid var(--border); border-radius: 5px; background: none; cursor: pointer; padding: 2px; flex-shrink: 0; }
+    select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); padding: 5px 8px; font-family: var(--sans); font-size: 0.78em;
+      transition: border-color 0.15s; width: 100%;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+
+    /* DL seat cards */
+    .dl-seat { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 11px 14px; display: grid; grid-template-columns: 11px 1fr auto; gap: 10px; align-items: start; cursor: pointer; transition: border-color 0.15s; }
+    .dl-seat:hover { border-color: var(--border-2); }
+    .dl-seat.seat-active { border-color: var(--gold); box-shadow: 0 0 10px rgba(212,168,83,0.15); }
+    .dl-seat.seat-selected { border-color: var(--accent); background: var(--accent-dim); }
+    .dl-seat-bar { width: 3px; border-radius: 3px; min-height: 36px; align-self: stretch; }
+    .dl-seat-info .name { font-weight: 600; font-size: 0.9em; }
+    .dl-seat-info .char { font-size: 0.75em; color: var(--text-muted); font-style: italic; }
+    .dl-seat-info .leds { font-size: 0.72em; color: var(--accent); margin-top: 2px; }
+    .dl-seat-actions { display: flex; flex-direction: column; gap: 4px; }
+
+    /* DL toggle switch (inline) */
+    .dl-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .dl-toggle input { display: none; }
+    .dl-toggle-track { width: 34px; height: 18px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; position: relative; transition: all 0.2s; flex-shrink: 0; }
+    .dl-toggle-track::after { content: ''; position: absolute; width: 12px; height: 12px; background: var(--text-muted); border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s; }
+    .dl-toggle input:checked + .dl-toggle-track { background: rgba(124,92,191,0.3); border-color: var(--accent); }
+    .dl-toggle input:checked + .dl-toggle-track::after { transform: translateX(16px); background: var(--accent); }
+    .dl-toggle-label { font-size: 0.82em; color: var(--text-muted); }
   </style>
 </head>
 <body>
 
 <header>
-  <span class="logo-icon">⬡</span>
-  <h1>AstralBridge</h1>
-  <div class="tabs">
+  <!-- Module Picker -->
+  <div class="module-pick" id="module-pick">
+    <button class="module-btn" onclick="toggleModulePick(event)">
+      <span id="module-icon">⬡</span>
+      <span id="module-name">AstralBridge</span>
+      <span class="mod-arrow">▾</span>
+    </button>
+    <div class="module-drop">
+      <div class="module-opt active" id="mopt-ab" onclick="switchModule('ab')">
+        <span>⬡</span>
+        <div><div>AstralBridge</div><div class="mod-opt-sub">D&amp;D Beyond bridge</div></div>
+      </div>
+      <div class="module-opt" id="mopt-dl" onclick="switchModule('dl')">
+        <span>🕯️</span>
+        <div><div>Dancing Lights</div><div class="mod-opt-sub">WLED controller</div></div>
+        <span class="dl-badge" id="dl-badge">OFF</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- AstralBridge tabs -->
+  <div class="tabs" id="tabs-ab">
     <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
     <button class="tab-btn" id="tab-stats" onclick="switchTab('stats')">Statistics</button>
     <button class="tab-btn" id="tab-config" onclick="switchTab('config')">Config</button>
   </div>
+
+  <!-- Dancing Lights tabs -->
+  <div class="tabs" id="tabs-dl" style="display:none;">
+    <button class="tab-btn active" id="tab-dl-events"   onclick="switchDlTab('events')">Events</button>
+    <button class="tab-btn"        id="tab-dl-ambiente" onclick="switchDlTab('ambiente')">Ambiente</button>
+    <button class="tab-btn"        id="tab-dl-dungeon"  onclick="switchDlTab('dungeon')">Dungeon Screen</button>
+  </div>
+
   <div class="status-row">
+    <!-- AB status (hidden when DL active) -->
     <span id="pill-ddb"     class="pill err">DDB: Disconnected</span>
     <span id="pill-foundry" class="pill dim">Foundry: 0 clients</span>
+    <!-- DL enable toggle (hidden when AB active) -->
+    <label class="dl-hdr-toggle" id="dl-hdr-toggle" style="display:none;" title="Enable/disable Dancing Lights integration">
+      <input type="checkbox" id="dl-enabled-chk" onchange="setDlEnabled(this.checked)">
+      <div class="dl-track"></div>
+      <span class="dl-hdr-label">Dancing Lights</span>
+    </label>
     <a href="https://github.com/rauchmo/AstralBridge" target="_blank" class="gh-link">
       <svg height="14" width="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
@@ -436,6 +585,18 @@
   </div>
 
   <div class="card">
+    <h3>Webhooks</h3>
+    <p style="font-size:0.82em;color:#8b949e;margin-bottom:10px;">
+      Every roll is POSTed as JSON to these URLs. Enter a full URL or <code style="background:#21262d;padding:1px 4px;border-radius:3px;">http://ip:port/path</code>.
+    </p>
+    <div id="webhook-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="webhook-input" placeholder="http://192.168.1.x:9000/roll" style="flex:1;">
+      <button class="btn primary small" onclick="addWebhook()">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h3>D&D Beyond Config</h3>
     <div class="form-group">
       <label>Cobalt Session Token <button onclick="togglePw('cobalt-token', this)">Show</button></label>
@@ -451,6 +612,155 @@
     </div>
     <button class="btn" onclick="saveConfig(false)">Save</button>
     <button class="btn primary" onclick="saveConfig(true)">Save &amp; Restart</button>
+  </div>
+
+</div>
+
+<!-- ══ DANCING LIGHTS VIEWS ══════════════════════════════════════════════ -->
+
+<!-- DL: Events -->
+<div id="view-dl-events" class="dl-view">
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">Event Animations</h3>
+    <p style="font-size:.82em;color:var(--text-muted);margin-bottom:16px;">Configure which animation plays for each roll type. The previous WLED state is restored after the duration.</p>
+    <div class="dl-event-grid" id="dl-event-grid"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn primary small" onclick="dlSaveEvents()">Save All Events</button>
+    </div>
+  </div>
+</div>
+
+<!-- DL: Ambiente -->
+<div id="view-dl-ambiente" class="dl-view">
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">AMBIENTE</h3>
+    <p style="font-size:.82em;color:var(--text-muted);margin-bottom:14px;">Wähle einen Ambiente-Modus oder schalte ihn aus. Der aktive Modus spielt kontinuierlich, wenn keine Animation läuft.</p>
+    <div id="dl-ambient-btns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+
+    <!-- Inline editor (shown when a mode is selected) -->
+    <div id="dl-ambient-editor" style="display:none;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:14px;">
+      <div style="font-size:.75em;color:var(--text-muted);margin-bottom:8px;" id="dl-ambient-editor-label">Modus</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="font-size:.8em;color:var(--text-muted);">Farbe
+          <input type="color" id="dl-ambient-color" style="margin-left:6px;cursor:pointer;" oninput="dlAmbientPatch()">
+        </label>
+        <label style="font-size:.8em;color:var(--text-muted);">Effekt
+          <select id="dl-ambient-fx" style="margin-left:6px;font-size:.85em;" onchange="dlAmbientPatch()"></select>
+        </label>
+        <label style="font-size:.8em;color:var(--text-muted);">Helligkeit
+          <input type="range" id="dl-ambient-bri" min="10" max="255" style="width:80px;margin-left:6px;" oninput="dlAmbientPatch()">
+        </label>
+        <label style="font-size:.8em;color:var(--text-muted);">Speed
+          <input type="range" id="dl-ambient-sx" min="10" max="255" style="width:80px;margin-left:6px;" oninput="dlAmbientPatch()">
+        </label>
+      </div>
+    </div>
+
+    <!-- Add Mode form -->
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:8px;">Neuen Modus hinzufügen</div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Name (slug)</label>
+          <input type="text" id="dl-add-amb-name" placeholder="z.B. stadt" style="width:100px;">
+        </div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Farbe</label>
+          <input type="color" id="dl-add-amb-color" value="#7c5cbf">
+        </div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effekt</label>
+          <select id="dl-add-amb-fx" style="font-size:.85em;"></select>
+        </div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Helligkeit</label>
+          <input type="number" id="dl-add-amb-bri" value="150" min="10" max="255" style="width:60px;">
+        </div>
+        <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Speed</label>
+          <input type="number" id="dl-add-amb-sx" value="100" min="10" max="255" style="width:60px;">
+        </div>
+        <button class="btn primary small" onclick="dlAddAmbientMode()">Hinzufügen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DL: Dungeon Screen -->
+<div id="view-dl-dungeon" class="dl-view">
+
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">Dungeon Screen Device</h3>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;"><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">WLED IP</label><input type="text" id="dl-ds-ip" placeholder="e.g. 10.130.1.101"></div>
+      <div style="width:100px;"><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Total LEDs</label><input type="number" id="dl-ds-total" min="1" max="1000" placeholder="60"></div>
+      <div style="width:100px;"><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Brightness</label><input type="number" id="dl-ds-bri" min="0" max="255" placeholder="180"></div>
+      <button class="btn primary small" onclick="dlSaveDsConfig()">Save</button>
+      <button class="btn small" onclick="dlPingDs()">Ping</button>
+    </div>
+    <div id="dl-ds-ping" style="font-size:.78em;color:var(--text-muted);margin-top:8px;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">LED Strip — Seat Map</h3>
+    <p style="font-size:.78em;color:var(--text-muted);margin-bottom:10px;">Drag player segments to position them. Gold markers (▼) = screen corners.</p>
+    <canvas id="dl-ds-canvas" height="70" style="width:100%;border-radius:6px;background:#050709;display:block;"></canvas>
+    <div style="display:flex;justify-content:space-between;font-size:.7em;color:var(--text-muted);margin-top:3px;">
+      <span>LED 0</span><span id="dl-ds-led-label">LED ?</span>
+    </div>
+    <div style="margin-top:14px;">
+      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:8px;">Screen Layout — drag corner markers ▼ to define the 4 edges</div>
+      <canvas id="dl-ds-screen" height="200" style="width:100%;border-radius:6px;background:#050709;display:block;"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin:0;">Player Seats</h3>
+      <button class="btn small danger" id="dl-ds-clear-btn" onclick="dlDsClear()" style="display:none;">✕ Clear Signal</button>
+    </div>
+    <div id="dl-ds-player-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
+
+    <!-- Edit panel -->
+    <div id="dl-ds-edit-panel" style="display:none;border:1px solid var(--accent);border-radius:8px;padding:14px;margin-bottom:14px;background:var(--bg);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:.85em;font-weight:600;color:var(--gold);">Edit Seat</span>
+        <button class="btn small" onclick="dlDsDeselect()">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Player name</label><input type="text" id="dl-edit-name" placeholder="Aria"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">DDB Character</label><input type="text" id="dl-edit-char" placeholder="(auto-signal)"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Color</label><input type="color" id="dl-edit-color"></div>
+        <label class="dl-toggle" style="margin-top:16px;">
+          <input type="checkbox" id="dl-edit-auto">
+          <div class="dl-toggle-track"></div>
+          <span class="dl-toggle-label">Auto-signal on roll</span>
+        </label>
+      </div>
+      <button class="btn primary small" onclick="dlDsSaveEdit()">Save Changes</button>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:.78em;color:var(--text-muted);margin-bottom:8px;">Add a player seat</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Player name</label><input type="text" id="dl-add-name" placeholder="Aria"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">DDB Character</label><input type="text" id="dl-add-char" placeholder="(auto-signal)"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Start LED</label><input type="number" id="dl-add-start" value="0" min="0"></div>
+        <div><label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">End LED</label><input type="number" id="dl-add-end" value="5" min="1"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="color" id="dl-add-color" value="#ffcc00" title="Seat color">
+        <label class="dl-toggle" title="Auto-signal when character rolls">
+          <input type="checkbox" id="dl-add-auto" checked>
+          <div class="dl-toggle-track"></div>
+          <span class="dl-toggle-label">Auto-signal on roll</span>
+        </label>
+        <button class="btn primary small" onclick="dlDsAddPlayer()">Add Seat</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">Combat Control</h3>
+    <p style="font-size:.78em;color:var(--text-muted);margin-bottom:12px;">Manually signal whose turn it is.</p>
+    <div id="dl-ds-combat" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
   </div>
 
 </div>
@@ -817,8 +1127,694 @@
     if (e.key === "Escape") { document.getElementById("modal-backdrop").classList.remove("open"); document.querySelector(".modal").classList.remove("open"); }
   });
 
+  // ---- Webhooks ----
+  async function loadWebhooks() {
+    const urls = await fetch("/api/webhooks").then(r => r.json()).catch(() => []);
+    const list = document.getElementById("webhook-list");
+    if (!urls.length) {
+      list.innerHTML = `<div style="font-size:0.82em;color:#8b949e;">No webhooks configured.</div>`;
+      return;
+    }
+    list.innerHTML = urls.map((url, i) => `
+      <div style="display:flex;align-items:center;gap:6px;background:#161b22;border:1px solid #30363d;border-radius:5px;padding:6px 10px;">
+        <span style="flex:1;font-size:0.85em;color:#e6edf3;word-break:break-all;">${url}</span>
+        <button class="btn small danger" onclick="removeWebhook(${i})">✕</button>
+      </div>`).join("");
+  }
+
+  async function addWebhook() {
+    const input = document.getElementById("webhook-input");
+    const url = input.value.trim();
+    if (!url) return;
+    await fetch("/api/webhooks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+    input.value = "";
+    loadWebhooks();
+    toast("Webhook added.");
+  }
+
+  async function removeWebhook(index) {
+    await fetch(`/api/webhooks/${index}`, { method: "DELETE" });
+    loadWebhooks();
+    toast("Webhook removed.");
+  }
+
+  document.getElementById("webhook-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") addWebhook();
+  });
+
   loadConfig();
   loadRolls();
+  loadWebhooks();
+
+  // ══════════════════════════════════════════════════════════════
+  // MODULE SWITCHER
+  // ══════════════════════════════════════════════════════════════
+
+  let _activeModule = "ab";
+
+  function toggleModulePick(e) {
+    e.stopPropagation();
+    document.getElementById("module-pick").classList.toggle("open");
+  }
+  document.addEventListener("click", () => document.getElementById("module-pick").classList.remove("open"));
+
+  function switchModule(mod) {
+    _activeModule = mod;
+    document.getElementById("module-pick").classList.remove("open");
+
+    const isAb = mod === "ab";
+    document.getElementById("module-icon").textContent = isAb ? "⬡" : "🕯️";
+    document.getElementById("module-name").textContent = isAb ? "AstralBridge" : "Dancing Lights";
+    document.getElementById("tabs-ab").style.display = isAb ? "" : "none";
+    document.getElementById("tabs-dl").style.display = isAb ? "none" : "";
+    document.getElementById("pill-ddb").style.display      = isAb ? "" : "none";
+    document.getElementById("pill-foundry").style.display  = isAb ? "" : "none";
+    document.getElementById("dl-hdr-toggle").style.display = isAb ? "none" : "";
+    document.getElementById("mopt-ab").classList.toggle("active", isAb);
+    document.getElementById("mopt-dl").classList.toggle("active", !isAb);
+
+    if (isAb) {
+      stopDlPolling();
+      // Clear DL view inline styles so CSS classes control them
+      document.querySelectorAll(".dl-view").forEach(el => { el.style.display=""; el.classList.remove("active"); });
+      // Clear inline styles on AB views so classList works again
+      ["view-dashboard","view-stats","view-config"].forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = "";
+      });
+      switchTab(_activeTab || "dashboard");
+    } else {
+      // Clear AB views
+      ["view-dashboard","view-stats","view-config"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.remove("active"); el.style.display = "none"; }
+      });
+      document.querySelectorAll(".dl-view").forEach(el => { el.style.display=""; el.classList.remove("active"); });
+      switchDlTab(_activeDlTab || "events");
+      dlLoadAll();
+      startDlPolling();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // DANCING LIGHTS — state & helpers
+  // ══════════════════════════════════════════════════════════════
+
+  let _activeDlTab   = "events";
+  let _dlEvents      = {};
+  let _dlData        = { ip: "", total_leds: 60, brightness: 180, players: [], corners: [], active_player: null, current_ambient: null, roll_active: false };
+  let _dlSelected    = null;
+  let _dlDrag        = null;
+  let _dlHover       = null;
+  let _dlCornerDrag  = null;
+  let _dlPreviewTick = false;
+
+  const DL_EFFECTS = [[0,"Solid"],[2,"Breathe"],[4,"Wipe"],[9,"Blink"],[11,"Strobe"],[13,"Chase"],
+    [17,"Dissolve"],[25,"Fire 2012"],[28,"Colorwave"],[38,"Colorloop"],[45,"Fireworks"],
+    [46,"Rain"],[56,"Pride 2015"],[58,"Oscillate"],[65,"Glitter"],[73,"Scan"],
+    [77,"Fade"],[88,"Ripple"],[91,"BPM"],[98,"Sunrise"]];
+
+  const DL_ICONS = { nat20:"⭐",nat1:"💀",damage:"🔥",heal:"💚",initiative:"⚔️",save:"🛡️",check:"🎲",attack:"🗡️" };
+
+  function dlRgbToHex(rgb) { return "#" + rgb.map(v => v.toString(16).padStart(2,"0")).join(""); }
+  function dlHexToRgb(hex) { return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]; }
+
+  function switchDlTab(tab) {
+    _activeDlTab = tab;
+    ["events","ambiente","dungeon"].forEach(t => {
+      const view = document.getElementById(`view-dl-${t}`);
+      const btn  = document.getElementById(`tab-dl-${t}`);
+      if (view) view.classList.toggle("active", t === tab);
+      if (btn)  btn.classList.toggle("active", t === tab);
+    });
+    if (tab === "dungeon") {
+      requestAnimationFrame(() => { dlDrawStrip(); dlDrawScreen(); dlInitCanvas(); });
+    }
+  }
+
+  async function dlLoadAll() {
+    await Promise.all([dlLoadDlConfig(), dlLoadEvents(), dlLoadDs(), dlLoadAmbient()]);
+  }
+
+  let _dlPollInterval = null;
+
+  function startDlPolling() {
+    if (_dlPollInterval) return;
+    _dlPollInterval = setInterval(async () => {
+      const data = await fetch("/dl/api/dungeon-screen").then(r => r.json()).catch(() => null);
+      if (!data) return;
+      _dlData.current_ambient = data.current_ambient;
+      _dlData.roll_active = data.roll_active;
+      _dlData.active_player = data.active_player;
+      dlRenderAmbientButtons();
+      dlDrawStrip();
+      dlDrawScreen();
+    }, 3000);
+  }
+
+  function stopDlPolling() {
+    clearInterval(_dlPollInterval);
+    _dlPollInterval = null;
+  }
+
+  // ─── Ambiente ─────────────────────────────────────────────────
+  const DL_AMBIENT_LABELS = {
+    taverne:"Taverne", dungeon:"Dungeon", wald:"Wald", hoelle:"Hölle",
+    ozean:"Ozean", magie:"Magie", eis:"Eis", kampf:"Kampf"
+  };
+
+  let _dlAmbientModes = {};
+  let _dlAmbientSelected = null;
+
+  async function dlLoadAmbient() {
+    // Populate effect dropdowns
+    const effectOpts = DL_EFFECTS.map(([id,name]) => `<option value="${id}">${name}</option>`).join("");
+    const fxSel = document.getElementById("dl-ambient-fx");
+    const fxAdd = document.getElementById("dl-add-amb-fx");
+    if (fxSel) fxSel.innerHTML = effectOpts;
+    if (fxAdd) fxAdd.innerHTML = effectOpts;
+
+    const data = await fetch("/dl/api/dungeon-screen/ambient").then(r=>r.json()).catch(()=>null);
+    if (!data) return;
+    _dlAmbientModes = data.modes || {};
+    _dlData.current_ambient = data.current;
+    dlRenderAmbientButtons();
+  }
+
+  function dlRenderAmbientButtons() {
+    const container = document.getElementById("dl-ambient-btns");
+    if (!container) return;
+    const active = _dlData.current_ambient;
+    container.innerHTML = Object.keys(DL_AMBIENT_LABELS).map(key => {
+      const isActive = key === active;
+      return `<button onclick="dlAmbientActivate('${key}')" style="
+        padding:5px 12px;font-size:.8em;border-radius:5px;cursor:pointer;border:1px solid;
+        background:${isActive ? "var(--accent,#7c3aed)" : "var(--bg)"};
+        color:${isActive ? "#fff" : "var(--text)"};
+        border-color:${isActive ? "var(--accent,#7c3aed)" : "var(--border)"};
+        font-weight:${isActive ? "700" : "400"};
+      ">${DL_AMBIENT_LABELS[key]}</button>`;
+    }).join("") + `<button onclick="dlAmbientOff()" style="
+      padding:5px 12px;font-size:.8em;border-radius:5px;cursor:pointer;border:1px solid;
+      background:${!active ? "var(--danger,#c0392b)" : "var(--bg)"};
+      color:${!active ? "#fff" : "var(--text-muted)"};
+      border-color:${!active ? "var(--danger,#c0392b)" : "var(--border)"};
+    ">Aus</button>`;
+  }
+
+  async function dlAmbientActivate(mode) {
+    _dlAmbientSelected = mode;
+    await fetch(`/dl/api/dungeon-screen/ambient/${mode}`, {method:"POST"});
+    _dlData.current_ambient = mode;
+    dlRenderAmbientButtons();
+    dlShowAmbientEditor(mode);
+  }
+
+  async function dlAmbientOff() {
+    await fetch("/dl/api/dungeon-screen/ambient", {method:"DELETE"});
+    _dlData.current_ambient = null;
+    _dlAmbientSelected = null;
+    dlRenderAmbientButtons();
+    document.getElementById("dl-ambient-editor").style.display = "none";
+  }
+
+  function dlShowAmbientEditor(mode) {
+    const m = _dlAmbientModes[mode];
+    if (!m) return;
+    document.getElementById("dl-ambient-editor").style.display = "block";
+    document.getElementById("dl-ambient-editor-label").textContent = DL_AMBIENT_LABELS[mode] || mode;
+    const [r,g,b] = m.color;
+    document.getElementById("dl-ambient-color").value = "#" + [r,g,b].map(x=>x.toString(16).padStart(2,"0")).join("");
+    document.getElementById("dl-ambient-bri").value = m.bri;
+    document.getElementById("dl-ambient-sx").value = m.sx;
+  }
+
+  let _dlAmbientPatchTimer = null;
+  async function dlAmbientPatch() {
+    if (!_dlAmbientSelected) return;
+    clearTimeout(_dlAmbientPatchTimer);
+    _dlAmbientPatchTimer = setTimeout(async () => {
+      const hex = document.getElementById("dl-ambient-color").value;
+      const color = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
+      const bri = parseInt(document.getElementById("dl-ambient-bri").value);
+      const sx = parseInt(document.getElementById("dl-ambient-sx").value);
+      _dlAmbientModes[_dlAmbientSelected] = {...(_dlAmbientModes[_dlAmbientSelected]||{}), color, bri, sx};
+      await fetch(`/dl/api/dungeon-screen/ambient/${_dlAmbientSelected}`, {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({color, bri, sx})
+      });
+    }, 150);
+  }
+
+  // ─── DL Config (enabled flag) ────────────────────────────────
+  async function dlLoadDlConfig() {
+    const cfg = await fetch("/dl/api/config").then(r => r.json()).catch(() => ({ enabled: false }));
+    document.getElementById("dl-enabled-chk").checked = cfg.enabled;
+    dlUpdateBadge(cfg.enabled);
+  }
+
+  function dlUpdateBadge(enabled) {
+    const badge = document.getElementById("dl-badge");
+    if (!badge) return;
+    badge.textContent = enabled ? "ON" : "OFF";
+    badge.className = "dl-badge" + (enabled ? " on" : "");
+  }
+
+  async function setDlEnabled(enabled) {
+    await fetch("/dl/api/config", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    dlUpdateBadge(enabled);
+    toast(enabled ? "Dancing Lights enabled." : "Dancing Lights disabled.");
+  }
+
+
+  // ─── DL Events ───────────────────────────────────────────────
+  async function dlLoadEvents() {
+    _dlEvents = await fetch("/dl/api/events").then(r => r.json()).catch(() => ({}));
+    dlRenderEvents(_dlEvents);
+  }
+
+  function dlRenderEvents(events) {
+    const grid = document.getElementById("dl-event-grid");
+    const effectOpts = DL_EFFECTS.map(([id,name]) => `<option value="${id}">${name}</option>`).join("");
+    grid.innerHTML = Object.entries(events).map(([key, ev]) => `
+      <div class="dl-event-card" id="dl-ecard-${key}">
+        <div class="dl-ev-header">
+          <span class="dl-ev-icon">${DL_ICONS[key]||"🎲"}</span>
+          <span class="dl-ev-name">${ev.label||key}</span>
+          <label class="dl-toggle"><input type="checkbox" id="dl-ev-en-${key}" ${ev.enabled?"checked":""}><div class="dl-toggle-track"></div></label>
+        </div>
+        <div class="dl-ev-row"><label>Color</label><input type="color" id="dl-ev-col-${key}" value="${dlRgbToHex(ev.color||[255,255,255])}"><div style="flex:1"></div><label style="width:auto;margin:0;">Effect</label><select id="dl-ev-fx-${key}" style="width:115px;">${effectOpts}</select></div>
+        <div class="dl-ev-row"><label>Brightness</label><input type="range" id="dl-ev-bri-${key}" min="0" max="255" value="${ev.brightness??200}" oninput="document.getElementById('dl-bv-${key}').textContent=this.value"><span class="dl-slider-val" id="dl-bv-${key}">${ev.brightness??200}</span></div>
+        <div class="dl-ev-row"><label>Speed</label><input type="range" id="dl-ev-spd-${key}" min="0" max="255" value="${ev.speed??128}" oninput="document.getElementById('dl-sv-${key}').textContent=this.value"><span class="dl-slider-val" id="dl-sv-${key}">${ev.speed??128}</span></div>
+        <div class="dl-ev-row"><label>Duration</label><input type="number" id="dl-ev-dur-${key}" value="${ev.duration??2000}" min="500" max="10000" step="100" style="width:80px;"><span style="font-size:.75em;color:var(--text-muted);">ms</span></div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <button class="btn small" style="background:var(--green-dim);border-color:rgba(52,208,104,.3);color:var(--green);" onclick="dlTestEvent('${key}')">▶ Test</button>
+        </div>
+      </div>`).join("");
+    Object.entries(events).forEach(([key,ev]) => {
+      const sel = document.getElementById(`dl-ev-fx-${key}`);
+      if (sel) sel.value = ev.effect ?? 0;
+    });
+  }
+
+  function dlCollectEvents() {
+    return Object.fromEntries(Object.entries(_dlEvents).map(([key,ev]) => [key, {
+      label:      ev.label,
+      enabled:    document.getElementById(`dl-ev-en-${key}`)?.checked ?? ev.enabled,
+      color:      dlHexToRgb(document.getElementById(`dl-ev-col-${key}`)?.value || "#ffffff"),
+      effect:     parseInt(document.getElementById(`dl-ev-fx-${key}`)?.value ?? ev.effect),
+      brightness: parseInt(document.getElementById(`dl-ev-bri-${key}`)?.value ?? ev.brightness),
+      speed:      parseInt(document.getElementById(`dl-ev-spd-${key}`)?.value ?? ev.speed),
+      duration:   parseInt(document.getElementById(`dl-ev-dur-${key}`)?.value ?? ev.duration),
+    }]));
+  }
+
+  async function dlSaveEvents() {
+    const events = dlCollectEvents();
+    const res = await fetch("/dl/api/events", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(events) });
+    if (res.ok) toast("Events saved!");
+  }
+
+  async function dlTestEvent(name) {
+    await fetch(`/dl/api/events/${name}/trigger`, { method:"POST" });
+    toast(`Triggered: ${name}`);
+  }
+
+  // ─── DL Dungeon Screen ───────────────────────────────────────
+  async function dlLoadDs() {
+    _dlData = await fetch("/dl/api/dungeon-screen").then(r => r.json()).catch(() => _dlData);
+    document.getElementById("dl-ds-ip").value    = _dlData.ip || "";
+    document.getElementById("dl-ds-total").value = _dlData.total_leds || 60;
+    document.getElementById("dl-ds-bri").value   = _dlData.brightness || 180;
+    document.getElementById("dl-ds-led-label").textContent = `LED ${(_dlData.total_leds||60)-1}`;
+    if (!_dlData.corners || _dlData.corners.length < 3) {
+      const t = _dlData.total_leds || 60;
+      _dlData.corners = [Math.round(t*.25), Math.round(t*.5), Math.round(t*.75)];
+    }
+    dlRenderPlayers();
+    dlDrawStrip();
+    dlDrawScreen();
+  }
+
+  async function dlSaveDsConfig() {
+    const newTotal = parseInt(document.getElementById("dl-ds-total").value) || 60;
+    let corners = _dlData.corners || [];
+    if (corners.length < 3) corners = [Math.round(newTotal*.25), Math.round(newTotal*.5), Math.round(newTotal*.75)];
+    const body = {
+      ip: document.getElementById("dl-ds-ip").value.trim(),
+      total_leds: newTotal,
+      brightness: parseInt(document.getElementById("dl-ds-bri").value) || 180,
+      players: _dlData.players || [],
+      corners,
+    };
+    await fetch("/dl/api/dungeon-screen", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+    _dlData = { ..._dlData, ...body };
+    document.getElementById("dl-ds-led-label").textContent = `LED ${body.total_leds - 1}`;
+    dlDrawStrip(); dlDrawScreen();
+    toast("Dungeon Screen saved.");
+  }
+
+  async function dlPingDs() {
+    const el = document.getElementById("dl-ds-ping");
+    el.textContent = "Pinging…";
+    const res = await fetch("/dl/api/dungeon-screen/ping").then(r => r.json()).catch(() => ({online:false}));
+    el.style.color = res.online ? "var(--green)" : "var(--red)";
+    el.textContent = res.online ? `✓ Online — ${res.name||"WLED"} v${res.version||"?"} · ${res.leds||"?"} LEDs` : `✗ Unreachable — ${res.error||""}`;
+  }
+
+  // ─── Canvas helpers ──────────────────────────────────────────
+  function _dlLayout(canvas) {
+    const total = _dlData.total_leds || 60;
+    const padX = 12, W = canvas.width;
+    const ledW = (W - padX * 2) / total;
+    const ledR = Math.min(ledW * 0.42, 7);
+    const midY = 44;
+    return { total, padX, W, ledW, ledR, midY };
+  }
+
+  function _dlLedFromX(x, canvas) {
+    const { total, padX, ledW } = _dlLayout(canvas);
+    return Math.max(0, Math.min(total, Math.floor((x - padX) / ledW)));
+  }
+
+  function _dlHitTest(x, canvas) {
+    const { padX, ledW } = _dlLayout(canvas);
+    const EDGE = Math.max(7, Math.min(ledW * 1.2, 14));
+    for (let i = 0; i < (_dlData.corners||[]).length; i++) {
+      const cx = padX + _dlData.corners[i] * ledW;
+      if (Math.abs(x - cx) <= EDGE) return { type:"corner", index:i };
+    }
+    for (const p of [...(_dlData.players||[])].reverse()) {
+      const x0 = padX + p.start * ledW;
+      const x1 = padX + p.end   * ledW;
+      if (Math.abs(x - x0) <= EDGE) return { type:"resize-left",  player:p };
+      if (Math.abs(x - x1) <= EDGE) return { type:"resize-right", player:p };
+      if (x > x0 + EDGE && x < x1 - EDGE) return { type:"move", player:p };
+    }
+    return null;
+  }
+
+  function dlDrawStrip() {
+    const canvas = document.getElementById("dl-ds-canvas");
+    if (!canvas) return;
+    const cssW = canvas.parentElement?.offsetWidth || 600;
+    if (canvas.width !== cssW) canvas.width = cssW;
+    canvas.height = 70;
+    const { total, padX, ledW, ledR, midY } = _dlLayout(canvas);
+    const players = _dlData.players || [];
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, 70);
+    ctx.fillStyle = "#050709"; ctx.fillRect(0,0,canvas.width,70);
+
+    const ledColors = new Array(total).fill(null);
+    players.forEach(p => { for (let i = p.start; i < p.end && i < total; i++) ledColors[i] = p.color; });
+
+    const dragId  = _dlDrag?.player?.id;
+    const hoverId = _dlHover?.player?.id;
+
+    players.forEach(p => {
+      if (p.end <= p.start) return;
+      const x = padX + p.start * ledW, w = (p.end - p.start) * ledW;
+      const [r,g,b] = p.color;
+      const isDragging = p.id === dragId, isHovered = p.id === hoverId, isActive = _dlData.active_player === p.id;
+      const alpha = isDragging ? 0.22 : isHovered ? 0.14 : 0.08;
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.beginPath(); ctx.roundRect(x,20,w,midY-20+ledR+4,4); ctx.fill();
+      if (isActive) { ctx.strokeStyle=`rgba(${r},${g},${b},0.5)`; ctx.lineWidth=1.5; ctx.beginPath(); ctx.roundRect(x+1,21,w-2,midY-21+ledR+3,4); ctx.stroke(); }
+      const mid = padX + (p.start+p.end)/2*ledW;
+      ctx.fillStyle = isActive ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},0.85)`;
+      ctx.font = `${isActive||isDragging?"bold ":""}11px Outfit,sans-serif`; ctx.textAlign = "center";
+      ctx.fillText(p.name, mid, 13);
+      if (isDragging) { ctx.fillStyle=`rgba(${r},${g},${b},0.7)`; ctx.font="10px monospace"; ctx.fillText(`${p.start}–${p.end-1}`,mid,24); }
+      const hA = (isDragging||isHovered) ? 0.9 : 0.35;
+      ctx.fillStyle = `rgba(${r},${g},${b},${hA})`;
+      ctx.beginPath(); ctx.roundRect(x-2,midY-ledR-4,4,ledR*2+8,2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(x+w-2,midY-ledR-4,4,ledR*2+8,2); ctx.fill();
+    });
+
+    for (let i = 0; i < total; i++) {
+      const lx = padX + i*ledW + ledW/2, color = ledColors[i];
+      if (color) {
+        const [r,g,b] = color;
+        const grd = ctx.createRadialGradient(lx,midY,0,lx,midY,ledR*2.5);
+        grd.addColorStop(0,`rgba(${r},${g},${b},0.55)`); grd.addColorStop(1,"transparent");
+        ctx.beginPath(); ctx.arc(lx,midY,ledR*2.5,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
+        ctx.beginPath(); ctx.arc(lx,midY,ledR,0,Math.PI*2); ctx.fillStyle=`rgb(${r},${g},${b})`; ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(lx,midY,ledR*0.55,0,Math.PI*2); ctx.fillStyle="#1a2235"; ctx.fill();
+      }
+    }
+
+    (_dlData.corners||[]).forEach((ledPos, idx) => {
+      const cx = padX + ledPos * ledW;
+      const isDragging = _dlCornerDrag?.index === idx;
+      const isHovered  = _dlHover?.type === "corner" && _dlHover?.index === idx;
+      const a = (isDragging||isHovered) ? 1.0 : 0.72;
+      ctx.save(); ctx.strokeStyle=`rgba(201,168,76,${a})`; ctx.lineWidth=isDragging?2:1.5; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(cx,14); ctx.lineTo(cx,70); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      ctx.fillStyle=`rgba(201,168,76,${a})`;
+      ctx.beginPath(); ctx.moveTo(cx-6,0); ctx.lineTo(cx+6,0); ctx.lineTo(cx,11); ctx.closePath(); ctx.fill();
+      ctx.font=`${isDragging?"bold ":""}9px monospace`; ctx.textAlign="center";
+      ctx.fillText(`C${idx+1}`,cx,22);
+      if (isDragging||isHovered) { ctx.font="8px monospace"; ctx.fillText(ledPos,cx,31); }
+    });
+  }
+
+  function dlDrawScreen() {
+    const canvas = document.getElementById("dl-ds-screen");
+    if (!canvas) return;
+    const cssW = canvas.parentElement?.offsetWidth || 600;
+    if (canvas.width !== cssW) canvas.width = cssW;
+    canvas.height = 200;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#050709"; ctx.fillRect(0,0,W,H);
+    const total = _dlData.total_leds || 60;
+    const corners = (_dlData.corners||[]).slice(0,3).map(Number);
+    const players = _dlData.players || [];
+    if (corners.length < 3) {
+      ctx.fillStyle="#3a4560"; ctx.font="12px Outfit,sans-serif"; ctx.textAlign="center";
+      ctx.fillText("Drag the 3 corner markers ▼ on the strip above to define the screen layout", W/2, H/2);
+      return;
+    }
+    const [c1,c2,c3] = corners;
+    const pad=24, thick=18, rX=pad, rY=pad, rW=W-2*pad, rH=H-2*pad;
+    ctx.fillStyle="#111825"; ctx.beginPath(); ctx.roundRect(rX,rY,rW,rH,6); ctx.fill();
+    ctx.fillStyle="#0a0d14"; ctx.fillRect(rX+thick,rY+thick,rW-2*thick,rH-2*thick);
+    ctx.fillStyle="#1e2535"; ctx.font="13px Outfit,sans-serif"; ctx.textAlign="center";
+    ctx.fillText("🖥️  Dungeon Screen", W/2, H/2+5);
+
+    function drawEdgeBand(ledFrom,ledTo,x,y,w,h,horiz,reversed) {
+      const count = ledTo-ledFrom; if (count<=0) return;
+      ctx.fillStyle="#1a2235"; ctx.fillRect(x,y,w,h);
+      players.forEach(p => {
+        const s=Math.max(p.start,ledFrom), e=Math.min(p.end,ledTo);
+        if (e<=s) return;
+        let t0=(s-ledFrom)/count, t1=(e-ledFrom)/count;
+        if (reversed) { [t0,t1]=[1-t1,1-t0]; }
+        const [r,g,b]=p.color, isActive=_dlData.active_player===p.id;
+        ctx.fillStyle=isActive?`rgb(${r},${g},${b})`:`rgba(${r},${g},${b},0.8)`;
+        if (horiz) {
+          ctx.fillRect(x+t0*w,y,(t1-t0)*w,h);
+          if ((t1-t0)*w>18) { ctx.save(); ctx.beginPath(); ctx.rect(x+t0*w+1,y,(t1-t0)*w-2,h); ctx.clip(); ctx.fillStyle="rgba(0,0,0,0.75)"; ctx.font="bold 9px Outfit"; ctx.textAlign="center"; ctx.fillText(p.name,x+(t0+t1)/2*w,y+h/2+3.5); ctx.restore(); }
+        } else {
+          ctx.fillRect(x,y+t0*h,w,(t1-t0)*h);
+          if ((t1-t0)*h>18) { ctx.save(); ctx.beginPath(); ctx.rect(x,y+t0*h+1,w,(t1-t0)*h-2); ctx.clip(); ctx.translate(x+w/2,y+(t0+t1)/2*h); ctx.rotate(-Math.PI/2); ctx.fillStyle="rgba(0,0,0,0.75)"; ctx.font="bold 9px Outfit"; ctx.textAlign="center"; ctx.fillText(p.name,0,3.5); ctx.restore(); }
+        }
+      });
+      ctx.fillStyle="rgba(255,255,255,0.2)"; ctx.font="8px monospace"; ctx.textAlign="center";
+      if (horiz) ctx.fillText(count,x+w/2,y+h/2+3);
+      else { ctx.save(); ctx.translate(x+w/2,y+h/2); ctx.rotate(-Math.PI/2); ctx.fillText(count,0,3); ctx.restore(); }
+    }
+
+    drawEdgeBand(0,c1,   rX+thick,rY,        rW-2*thick,thick, true,  false);
+    drawEdgeBand(c1,c2,  rX+rW-thick,rY+thick,thick,rH-2*thick, false, false);
+    drawEdgeBand(c2,c3,  rX+thick,rY+rH-thick,rW-2*thick,thick, true,  true);
+    drawEdgeBand(c3,total,rX,rY+thick,        thick,rH-2*thick, false, true);
+
+    const GOLD="#c9a84c";
+    [[rX,rY],[rX+rW-thick,rY],[rX+rW-thick,rY+rH-thick],[rX,rY+rH-thick]].forEach(([cx,cy]) => {
+      ctx.fillStyle="#0a0d14"; ctx.fillRect(cx,cy,thick,thick);
+      ctx.beginPath(); ctx.arc(cx+thick/2,cy+thick/2,4,0,Math.PI*2); ctx.fillStyle=GOLD; ctx.fill();
+    });
+    ctx.fillStyle=GOLD; ctx.font="bold 9px monospace";
+    [[rX+thick/2,rY-4,"0","center"],[rX+rW-thick/2,rY-4,`${c1}`,"center"],
+     [rX+rW-thick/2,rY+rH+12,`${c2}`,"center"],[rX+thick/2,rY+rH+12,`${c3}`,"center"]
+    ].forEach(([lx,ly,txt,align]) => { ctx.textAlign=align; ctx.fillText(txt,lx,ly); });
+  }
+
+  function dlInitCanvas() {
+    const canvas = document.getElementById("dl-ds-canvas");
+    if (!canvas || canvas._dlInited) return;
+    canvas._dlInited = true;
+
+    canvas.addEventListener("mousedown", e => {
+      const hit = _dlHitTest(e.offsetX, canvas);
+      if (!hit) return;
+      if (hit.type === "corner") {
+        _dlCornerDrag = { index:hit.index, startLed:_dlLedFromX(e.offsetX,canvas), origLed:_dlData.corners[hit.index] };
+        canvas.style.cursor = "ew-resize"; e.preventDefault(); return;
+      }
+      const led = _dlLedFromX(e.offsetX, canvas);
+      _dlDrag = { ...hit, startLed:led, origStart:hit.player.start, origEnd:hit.player.end };
+      canvas.style.cursor = hit.type === "move" ? "grabbing" : "ew-resize"; e.preventDefault();
+    });
+
+    canvas.addEventListener("mousemove", e => {
+      if (_dlCornerDrag) {
+        const total=_dlData.total_leds||60, corners=_dlData.corners, idx=_dlCornerDrag.index;
+        const ledNow=_dlLedFromX(e.offsetX,canvas), delta=ledNow-_dlCornerDrag.startLed;
+        const minLed=idx===0?1:corners[idx-1]+1, maxLed=idx===2?total-1:corners[idx+1]-1;
+        corners[idx]=Math.max(minLed,Math.min(maxLed,_dlCornerDrag.origLed+delta));
+        dlDrawStrip(); dlDrawScreen();
+        if (!_dlPreviewTick) { _dlPreviewTick=true; setTimeout(() => { _dlPreviewTick=false; fetch("/dl/api/dungeon-screen/corners-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({corners:_dlData.corners})}); }, 60); }
+        return;
+      }
+      if (!_dlDrag) {
+        const hit=_dlHitTest(e.offsetX,canvas), prev=_dlHover; _dlHover=hit;
+        if (!hit) canvas.style.cursor="default";
+        else if (hit.type==="corner") canvas.style.cursor="ew-resize";
+        else if (hit.type==="move")   canvas.style.cursor="grab";
+        else                          canvas.style.cursor="ew-resize";
+        const pk=prev?.player?.id??prev?.index, hk=hit?.player?.id??hit?.index;
+        if (pk!==hk||prev?.type!==hit?.type) dlDrawStrip();
+        return;
+      }
+      const total=_dlData.total_leds||60, ledNow=_dlLedFromX(e.offsetX,canvas), delta=ledNow-_dlDrag.startLed, p=_dlDrag.player, size=_dlDrag.origEnd-_dlDrag.origStart;
+      if (_dlDrag.type==="move") { const ns=Math.max(0,Math.min(total-size,_dlDrag.origStart+delta)); p.start=ns; p.end=ns+size; }
+      else if (_dlDrag.type==="resize-left") p.start=Math.max(0,Math.min(_dlDrag.origEnd-1,_dlDrag.origStart+delta));
+      else p.end=Math.max(_dlDrag.origStart+1,Math.min(total,_dlDrag.origEnd+delta));
+      dlDrawStrip(); dlDrawScreen(); dlRenderPlayers();
+      if (!_dlPreviewTick) { _dlPreviewTick=true; setTimeout(() => { _dlPreviewTick=false; fetch("/dl/api/dungeon-screen/preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:p.start,end:p.end,color:p.color})}); }, 60); }
+    });
+
+    const onUp = async () => {
+      if (_dlCornerDrag) {
+        const saved=[..._dlData.corners]; _dlCornerDrag=null; _dlPreviewTick=false;
+        canvas.style.cursor="default";
+        fetch("/dl/api/dungeon-screen/restore",{method:"POST"});  // re-apply layer state after preview
+        dlDrawStrip(); dlDrawScreen();
+        const body={..._dlData}; delete body.active_player; delete body.current_ambient; delete body.roll_active;
+        await fetch("/dl/api/dungeon-screen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+        toast(`Corners: LED ${saved.join(", ")}`); return;
+      }
+      if (!_dlDrag) return;
+      const p={..._dlDrag.player}; _dlDrag=null; _dlPreviewTick=false;
+      canvas.style.cursor=_dlHover?(_dlHover.type==="move"?"grab":"ew-resize"):"default";
+      await fetch(`/dl/api/dungeon-screen/players/${p.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:p.start,end:p.end})});
+      fetch("/dl/api/dungeon-screen/restore",{method:"POST"});  // re-apply layer state after preview
+      dlDrawScreen(); toast(`${p.name}: LEDs ${p.start}–${p.end-1}`);
+    };
+
+    canvas.addEventListener("mouseup", onUp);
+    canvas.addEventListener("mouseleave", () => {
+      _dlHover=null;
+      if (_dlDrag||_dlCornerDrag) onUp(); else dlDrawStrip();
+    });
+  }
+
+  // ─── DL Players ──────────────────────────────────────────────
+  function dlRenderPlayers() {
+    const players=_dlData.players||[], activeId=_dlData.active_player;
+    const list=document.getElementById("dl-ds-player-list");
+    if (!players.length) { list.innerHTML=`<div style="color:var(--text-muted);font-size:.85em;">No seats configured.</div>`; }
+    else {
+      list.innerHTML=players.map(p => {
+        const hex=dlRgbToHex(p.color||[255,215,0]);
+        const isActive=activeId===p.id, isSel=_dlSelected===p.id;
+        return `<div class="dl-seat${isActive?" seat-active":""}${isSel?" seat-selected":""}" onclick="dlDsSelect('${p.id}')">
+          <div class="dl-seat-bar" style="background:${hex}"></div>
+          <div class="dl-seat-info"><div class="name">${p.name}${isActive?" ⬅":""}</div>${p.character?`<div class="char">${p.character}</div>`:""}<div class="leds">LEDs ${p.start}–${p.end-1} · ${p.end-p.start} LEDs</div></div>
+          <div class="dl-seat-actions" onclick="event.stopPropagation()">
+            <button class="btn small" style="background:var(--green-dim);border-color:rgba(52,208,104,.3);color:var(--green);" onclick="dlDsSignal('${p.id}')">▶</button>
+            <button class="btn small danger" onclick="dlDsDelete('${p.id}')">✕</button>
+          </div>
+        </div>`;
+      }).join("");
+    }
+    const combat=document.getElementById("dl-ds-combat");
+    combat.innerHTML=players.map(p => {
+      const hex=dlRgbToHex(p.color||[255,215,0]), isActive=activeId===p.id;
+      return `<button class="btn${isActive?" primary":""}" onclick="dlDsSignal('${p.id}')" style="border-color:${hex};${isActive?`background:${hex}22;`:""}">${p.name}</button>`;
+    }).join("")+(players.length?`<button class="btn danger" onclick="dlDsClear()">✕ Clear</button>`:"");
+    const clearBtn=document.getElementById("dl-ds-clear-btn");
+    if (clearBtn) clearBtn.style.display=activeId?"block":"none";
+  }
+
+  async function dlDsSignal(pid) {
+    await fetch(`/dl/api/dungeon-screen/signal/${pid}`,{method:"POST"});
+    _dlData.active_player=pid; dlRenderPlayers(); dlDrawStrip(); dlDrawScreen();
+    const p=(_dlData.players||[]).find(x=>x.id===pid);
+    toast(`Signaling: ${p?p.name:pid}`);
+  }
+
+  async function dlDsClear() {
+    await fetch("/dl/api/dungeon-screen/clear",{method:"POST"});
+    _dlData.active_player=null; dlRenderPlayers(); dlDrawStrip(); dlDrawScreen();
+    toast("Signal cleared.");
+  }
+
+  async function dlDsAddPlayer() {
+    const name=document.getElementById("dl-add-name").value.trim();
+    const char=document.getElementById("dl-add-char").value.trim();
+    const start=parseInt(document.getElementById("dl-add-start").value)||0;
+    const end=parseInt(document.getElementById("dl-add-end").value)||5;
+    const color=dlHexToRgb(document.getElementById("dl-add-color").value);
+    const auto=document.getElementById("dl-add-auto").checked;
+    if (!name) { toast("Enter a player name."); return; }
+    const players=await fetch("/dl/api/dungeon-screen/players",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,character:char,start,end,color,auto_signal:auto})}).then(r=>r.json());
+    _dlData.players=players;
+    document.getElementById("dl-add-name").value="";
+    document.getElementById("dl-add-char").value="";
+    dlRenderPlayers(); dlDrawStrip(); dlDrawScreen(); toast("Seat added.");
+  }
+
+  function dlDsSelect(pid) {
+    if (_dlSelected===pid) { dlDsDeselect(); return; }
+    _dlSelected=pid;
+    const p=(_dlData.players||[]).find(x=>x.id===pid); if (!p) return;
+    document.getElementById("dl-edit-name").value  = p.name||"";
+    document.getElementById("dl-edit-char").value  = p.character||"";
+    document.getElementById("dl-edit-color").value = dlRgbToHex(p.color||[255,215,0]);
+    document.getElementById("dl-edit-auto").checked= p.auto_signal!==false;
+    document.getElementById("dl-ds-edit-panel").style.display="block";
+    dlRenderPlayers();
+  }
+
+  function dlDsDeselect() {
+    _dlSelected=null;
+    document.getElementById("dl-ds-edit-panel").style.display="none";
+    dlRenderPlayers();
+  }
+
+  async function dlDsSaveEdit() {
+    if (!_dlSelected) return;
+    const body={
+      name:       document.getElementById("dl-edit-name").value.trim(),
+      character:  document.getElementById("dl-edit-char").value.trim(),
+      color:      dlHexToRgb(document.getElementById("dl-edit-color").value),
+      auto_signal:document.getElementById("dl-edit-auto").checked,
+    };
+    const updated=await fetch(`/dl/api/dungeon-screen/players/${_dlSelected}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(r=>r.json());
+    const idx=(_dlData.players||[]).findIndex(p=>p.id===_dlSelected);
+    if (idx!==-1) _dlData.players[idx]={..._dlData.players[idx],...updated};
+    dlRenderPlayers(); dlDrawStrip(); dlDrawScreen(); toast(`${updated.name} updated.`);
+  }
+
+  async function dlDsDelete(pid) {
+    const players=await fetch(`/dl/api/dungeon-screen/players/${pid}`,{method:"DELETE"}).then(r=>r.json());
+    _dlData.players=players;
+    if (_dlData.active_player===pid) _dlData.active_player=null;
+    if (_dlSelected===pid) dlDsDeselect();
+    dlRenderPlayers(); dlDrawStrip(); dlDrawScreen(); toast("Seat removed.");
+  }
+
+  window.addEventListener("resize", () => { if (_activeModule==="dl") { dlDrawStrip(); dlDrawScreen(); } });
+
+  // Initialize DL badge on load
+  fetch("/dl/api/config").then(r=>r.json()).then(cfg => dlUpdateBadge(cfg.enabled)).catch(()=>{});
 </script>
 </body>
 </html>
