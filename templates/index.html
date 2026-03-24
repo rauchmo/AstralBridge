@@ -642,6 +642,27 @@
       <button class="btn small primary" onclick="dlStripOn()">💡 On</button>
     </div>
 
+    <!-- Ambient during turn -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+      <div style="flex:1">
+        <div style="font-size:.82em;color:var(--text)">Ambient during turn</div>
+        <div style="font-size:.73em;color:var(--text-muted);margin-top:2px">Show ambient behind the active player's LEDs</div>
+      </div>
+      <label class="dl-toggle">
+        <input type="checkbox" id="dl-ambient-during-turn" onchange="dlSaveTurnSettings()">
+        <div class="dl-toggle-track"></div>
+      </label>
+    </div>
+
+    <!-- Buffer LEDs -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+      <div style="flex:1">
+        <div style="font-size:.82em;color:var(--text)">Buffer LEDs (each side)</div>
+        <div style="font-size:.73em;color:var(--text-muted);margin-top:2px">LEDs turned off on each side of the player</div>
+      </div>
+      <input type="number" id="dl-turn-buffer" value="2" min="0" max="30" style="width:55px;text-align:center;" onchange="dlSaveTurnSettings()">
+    </div>
+
     <!-- Automatic content -->
     <div id="dl-auto-content">
       <div style="font-size:.78em;color:var(--text-muted);text-align:center;padding:20px 0">
@@ -1758,6 +1779,8 @@
     document.getElementById("dl-ds-total").value = _dlData.total_leds || 60;
     document.getElementById("dl-ds-bri").value   = _dlData.brightness || 180;
     document.getElementById("dl-ds-led-label").textContent = `LED ${(_dlData.total_leds||60)-1}`;
+    document.getElementById("dl-ambient-during-turn").checked = _dlData.ambient_during_turn !== false;
+    document.getElementById("dl-turn-buffer").value = _dlData.turn_buffer_leds ?? 2;
     if (!_dlData.corners || _dlData.corners.length < 3) {
       const t = _dlData.total_leds || 60;
       _dlData.corners = [Math.round(t*.25), Math.round(t*.5), Math.round(t*.75)];
@@ -1783,6 +1806,14 @@
     document.getElementById("dl-ds-led-label").textContent = `LED ${body.total_leds - 1}`;
     dlDrawStrip(); dlDrawScreen();
     toast("Dungeon Screen saved.");
+  }
+
+  async function dlSaveTurnSettings() {
+    _dlData.ambient_during_turn = document.getElementById("dl-ambient-during-turn").checked;
+    _dlData.turn_buffer_leds    = parseInt(document.getElementById("dl-turn-buffer").value) || 0;
+    await fetch("/dl/api/dungeon-screen", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(_dlData)
+    });
   }
 
   async function dlPingDs() {

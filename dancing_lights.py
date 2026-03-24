@@ -32,7 +32,7 @@ DL_DS_AMBIENT_DEFAULTS = {
     "combat":  {"color": [180,   0,   0], "fx": 11, "bri": 200, "sx":  60},
 }
 
-_DL_DS_DEFAULT = {"ip": "", "total_leds": 60, "brightness": 180, "players": [], "corners": []}
+_DL_DS_DEFAULT = {"ip": "", "total_leds": 60, "brightness": 180, "players": [], "corners": [], "ambient_during_turn": True, "turn_buffer_leds": 2}
 
 # Layer state — _dl_ds_roll_timer is not None means roll is active
 _dl_ds_ambient_mode: Optional[str] = None
@@ -104,17 +104,41 @@ async def dl_ds_apply_current_layer():
     if _dl_ds_player_active:
         player = next((p for p in ds.get("players", []) if p["id"] == _dl_ds_player_active), None)
         if player:
-            total = ds.get("total_leds", 60)
-            state = {
-                "on": True, "bri": ds.get("brightness", 180), "transition": 2,
-                "seg": [
-                    {"id": 0, "start": 0, "stop": total, "col": [[5, 5, 20]], "fx": 0, "on": True},
-                    {"id": 1, "start": player["start"], "stop": player["end"],
-                     "col": [player["color"], [0, 0, 0], [0, 0, 0]], "fx": 9, "sx": 180, "on": True},
-                    *_DL_DS_EXTRA_SEGS_OFF,
-                ],
-            }
-            await _dl_set(ip, state)
+            total      = ds.get("total_leds", 60)
+            ambient_on = ds.get("ambient_during_turn", True)
+            buffer     = int(ds.get("turn_buffer_leds", 2))
+            buf_start  = max(0, player["start"] - buffer)
+            buf_end    = min(total, player["end"] + buffer)
+
+            # Background: ambient if enabled and active, else dim neutral
+            m = None
+            if ambient_on and _dl_ds_ambient_mode:
+                cfg2 = dl_load()
+                m = cfg2["dungeon_screen"].get("ambient_modes", DL_DS_AMBIENT_DEFAULTS).get(_dl_ds_ambient_mode)
+            if m:
+                bg  = {"id": 0, "start": 0, "stop": total, "col": [m["color"], [0, 0, 0], [0, 0, 0]], "fx": m["fx"], "sx": m["sx"], "on": True}
+                bri = m["bri"]
+            else:
+                bg  = {"id": 0, "start": 0, "stop": total, "col": [[5, 5, 20]], "fx": 0, "on": True}
+                bri = ds.get("brightness", 180)
+
+            # Build segment list: bg → player → left buffer → right buffer → off
+            segs = [
+                bg,
+                {"id": 1, "start": player["start"], "stop": player["end"],
+                 "col": [player["color"], [0, 0, 0], [0, 0, 0]], "fx": 9, "sx": 180, "on": True},
+            ]
+            seg_id = 2
+            if buf_start < player["start"]:
+                segs.append({"id": seg_id, "start": buf_start, "stop": player["start"], "col": [[0, 0, 0]], "fx": 0, "on": True})
+                seg_id += 1
+            if player["end"] < buf_end:
+                segs.append({"id": seg_id, "start": player["end"], "stop": buf_end, "col": [[0, 0, 0]], "fx": 0, "on": True})
+                seg_id += 1
+            for i in range(seg_id, 8):
+                segs.append({"id": i, "on": False, "stop": 0})
+
+            await _dl_set(ip, {"on": True, "bri": bri, "transition": 2, "seg": segs})
             return
 
     # Layer 0: ambient
@@ -219,15 +243,16 @@ async def dl_trigger(event_name: str):
         _dl_ds_roll_timer.cancel()
         _dl_ds_roll_timer = None
 
-    await _dl_set(ip, anim)
-
     async def _restore():
         global _dl_ds_roll_timer
         await asyncio.sleep(duration_ms / 1000)
         _dl_ds_roll_timer = None
         await dl_ds_apply_current_layer()
 
+    # Create task BEFORE the first await so any concurrent dl_auto_signal
+    # that runs during the WLED HTTP call sees the roll as in-progress.
     _dl_ds_roll_timer = asyncio.create_task(_restore())
+    await _dl_set(ip, anim)
 
 
 # ── Dungeon Screen signals ─────────────────────────────────────────────────
