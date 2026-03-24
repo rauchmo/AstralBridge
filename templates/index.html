@@ -502,6 +502,11 @@
   </div>
 </header>
 
+<!-- DL: live LED strip — full width, below header, all DL tabs -->
+<div id="dl-live-strip" style="display:none;padding:8px 14px 6px;background:var(--surface);border-bottom:1px solid var(--border);">
+  <canvas id="dl-live-canvas" height="50" style="width:100%;display:block;border-radius:5px;background:#050709;"></canvas>
+</div>
+
 <!-- Statistics View -->
 <div id="view-stats">
   <div class="stat-cards">
@@ -1311,7 +1316,8 @@
     document.getElementById("module-icon").textContent = isAb ? "⬡" : "🕯️";
     document.getElementById("module-name").textContent = isAb ? "AstralBridge" : "Dancing Lights";
     document.getElementById("tabs-ab").style.display = isAb ? "" : "none";
-    document.getElementById("tabs-dl").style.display = isAb ? "none" : "";
+    document.getElementById("tabs-dl").style.display        = isAb ? "none" : "";
+    document.getElementById("dl-live-strip").style.display  = isAb ? "none" : "";
     document.getElementById("pill-ddb").style.display      = isAb ? "" : "none";
     document.getElementById("pill-foundry").style.display  = isAb ? "" : "none";
     document.getElementById("dl-hdr-toggle").style.display = isAb ? "none" : "";
@@ -1388,11 +1394,13 @@
       const data = await fetch("/dl/api/dungeon-screen").then(r => r.json()).catch(() => null);
       if (!data) return;
       _dlData.current_ambient = data.current_ambient;
-      _dlData.roll_active = data.roll_active;
-      _dlData.active_player = data.active_player;
+      _dlData.roll_active     = data.roll_active;
+      _dlData.roll_event      = data.roll_event;
+      _dlData.active_player   = data.active_player;
       dlRenderAmbientButtons();
       dlDrawStrip();
       dlDrawScreen();
+      dlDrawLive();
     }, 3000);
   }
 
@@ -1788,6 +1796,7 @@
     dlRenderPlayers();
     dlDrawStrip();
     dlDrawScreen();
+    dlDrawLive();
   }
 
   async function dlSaveDsConfig() {
@@ -1822,6 +1831,89 @@
     const res = await fetch("/dl/api/dungeon-screen/ping").then(r => r.json()).catch(() => ({online:false}));
     el.style.color = res.online ? "var(--green)" : "var(--red)";
     el.textContent = res.online ? `✓ Online — ${res.name||"WLED"} v${res.version||"?"} · ${res.leds||"?"} LEDs` : `✗ Unreachable — ${res.error||""}`;
+  }
+
+  // ─── Live LED strip ──────────────────────────────────────────
+  function dlDrawLive() {
+    const canvas = document.getElementById("dl-live-canvas");
+    if (!canvas) return;
+    const total  = _dlData.total_leds || 60;
+    const cssW   = canvas.parentElement?.offsetWidth || 600;
+    if (canvas.width !== cssW) canvas.width = cssW;
+    const padX   = 6;
+    const ledW   = (cssW - padX * 2) / total;
+    const ledR   = Math.min(ledW * 0.42, 8);
+    const midY   = canvas.height / 2;
+    const ctx    = canvas.getContext("2d");
+    ctx.clearRect(0, 0, cssW, canvas.height);
+    ctx.fillStyle = "#050709"; ctx.fillRect(0, 0, cssW, canvas.height);
+
+    const roll        = _dlData.roll_active;
+    const playerId    = _dlData.active_player;
+    const ambientKey  = _dlData.current_ambient;
+    const ambientOn   = _dlData.ambient_during_turn !== false;
+    const buffer      = parseInt(_dlData.turn_buffer_leds ?? 2);
+    const player      = playerId ? (_dlData.players||[]).find(p => p.id === playerId) : null;
+    const ambientCfg  = ambientKey ? _dlAmbientModes[ambientKey] : null;
+    const ambColor    = ambientCfg?.color ?? null;
+
+    // Build per-LED color array
+    const colors = new Array(total).fill(null);
+    if (roll) {
+      for (let i = 0; i < total; i++) colors[i] = [255, 200, 40];
+    } else if (player) {
+      if (ambientOn && ambColor) for (let i = 0; i < total; i++) colors[i] = ambColor;
+      const bufS = Math.max(0, player.start - buffer);
+      const bufE = Math.min(total, player.end + buffer);
+      for (let i = bufS; i < bufE; i++) colors[i] = null;                     // buffer: off
+      for (let i = player.start; i < player.end && i < total; i++) colors[i] = player.color;
+    } else if (ambColor) {
+      for (let i = 0; i < total; i++) colors[i] = ambColor;
+    }
+
+    for (let i = 0; i < total; i++) {
+      const lx = padX + i * ledW + ledW / 2;
+      const c  = colors[i];
+      if (c) {
+        const [r, g, b] = c;
+        const grd = ctx.createRadialGradient(lx, midY, 0, lx, midY, ledR * 2.4);
+        grd.addColorStop(0, `rgba(${r},${g},${b},0.65)`);
+        grd.addColorStop(1, "transparent");
+        ctx.beginPath(); ctx.arc(lx, midY, ledR * 2.4, 0, Math.PI * 2); ctx.fillStyle = grd; ctx.fill();
+        ctx.beginPath(); ctx.arc(lx, midY, ledR, 0, Math.PI * 2); ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.arc(lx, midY, ledR * 0.5, 0, Math.PI * 2); ctx.fillStyle = "#1a2235"; ctx.fill();
+      }
+    }
+
+    ctx.font = "bold 10px Outfit,sans-serif";
+    ctx.textAlign = "center";
+    if (roll && _dlData.roll_event) {
+      // Roll event label — centered, event color (gold fallback)
+      const ec = [255, 200, 40];
+      ctx.fillStyle = `rgb(${ec[0]},${ec[1]},${ec[2]})`;
+      ctx.fillText(_dlData.roll_event, cssW / 2, midY - ledR - 3);
+    } else if (player) {
+      // Player name above their segment
+      const mid = padX + (player.start + player.end) / 2 * ledW;
+      const [r, g, b] = player.color;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillText(player.name, mid, midY - ledR - 3);
+      // Ambient name below the dots when ambient_during_turn is on
+      if (ambColor && ambientKey && _dlData.ambient_during_turn !== false) {
+        const [ar, ag, ab] = ambColor;
+        ctx.font = "9px Outfit,sans-serif";
+        ctx.fillStyle = `rgba(${ar},${ag},${ab},0.75)`;
+        const label = DL_AMBIENT_LABELS[ambientKey] || (ambientKey.charAt(0).toUpperCase() + ambientKey.slice(1));
+        ctx.fillText(label, cssW / 2, midY + ledR + 10);
+      }
+    } else if (ambColor && ambientKey) {
+      // Ambient mode name — centered
+      const [r, g, b] = ambColor;
+      ctx.fillStyle = `rgba(${r},${g},${b},0.85)`;
+      const label = DL_AMBIENT_LABELS[ambientKey] || (ambientKey.charAt(0).toUpperCase() + ambientKey.slice(1));
+      ctx.fillText(label, cssW / 2, midY - ledR - 3);
+    }
   }
 
   // ─── Canvas helpers ──────────────────────────────────────────

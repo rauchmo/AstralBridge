@@ -38,6 +38,7 @@ _DL_DS_DEFAULT = {"ip": "", "total_leds": 60, "brightness": 180, "players": [], 
 _dl_ds_ambient_mode: Optional[str] = None
 _dl_ds_player_active: Optional[str] = None
 _dl_ds_roll_timer: Optional[asyncio.Task] = None
+_dl_ds_roll_event: Optional[str] = None
 _dl_manual_mode: bool = False
 
 # Extra segments 2-7 (segment 0=background strip, segment 1=player signal; 2-7 unused)
@@ -212,7 +213,7 @@ async def dl_trigger(event_name: str):
     """
     if _dl_manual_mode:
         return
-    global _dl_ds_roll_timer
+    global _dl_ds_roll_timer, _dl_ds_roll_event
     cfg = dl_load()
     if not cfg.get("enabled"):
         return
@@ -244,13 +245,15 @@ async def dl_trigger(event_name: str):
         _dl_ds_roll_timer = None
 
     async def _restore():
-        global _dl_ds_roll_timer
+        global _dl_ds_roll_timer, _dl_ds_roll_event
         await asyncio.sleep(duration_ms / 1000)
         _dl_ds_roll_timer = None
+        _dl_ds_roll_event = None
         await dl_ds_apply_current_layer()
 
     # Create task BEFORE the first await so any concurrent dl_auto_signal
     # that runs during the WLED HTTP call sees the roll as in-progress.
+    _dl_ds_roll_event = ev.get("label", event_name)
     _dl_ds_roll_timer = asyncio.create_task(_restore())
     await _dl_set(ip, anim)
 
@@ -447,6 +450,7 @@ async def dl_api_get_ds():
     ds["active_player"] = _dl_ds_player_active
     ds["current_ambient"] = _dl_ds_ambient_mode
     ds["roll_active"] = _dl_ds_roll_timer is not None
+    ds["roll_event"] = _dl_ds_roll_event
     return ds
 
 
