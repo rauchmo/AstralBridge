@@ -8,3 +8,4 @@ tests/
 docs/
 tests/
 tests/test_dancing_lights.py
+.worktrees/
