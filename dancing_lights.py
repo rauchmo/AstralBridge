@@ -41,6 +41,11 @@ _dl_ds_roll_timer: Optional[asyncio.Task] = None
 _dl_ds_roll_event: Optional[str] = None
 _dl_manual_mode: bool = False
 
+# Per-device state (keyed by device id)
+_dev_roll_timers: dict = {}   # id → active asyncio.Task or absent
+_dev_ambient:     dict = {}   # id → current ambient key (str | None)
+_dev_manual:      dict = {}   # id → manual mode flag (bool)
+
 # Extra segments 2-7 (segment 0=background strip, segment 1=player signal; 2-7 unused)
 _DL_DS_EXTRA_SEGS_OFF = [{"id": i, "on": False, "stop": 0} for i in range(2, 8)]
 # Neutral disables ALL extra segs 1-7 (no player signal active, so seg 1 must also be off)
@@ -55,11 +60,12 @@ def dl_load() -> dict:
             "enabled": False,
             "events": {k: dict(v) for k, v in DL_DEFAULT_EVENTS.items()},
             "dungeon_screen": {**_DL_DS_DEFAULT, "current_ambient": None, "ambient_modes": dict(DL_DS_AMBIENT_DEFAULTS)},
+            "devices": [],
         }
     try:
         cfg = json.loads(DL_CONFIG_FILE.read_text())
         cfg.setdefault("enabled", False)
-        cfg.pop("devices", None)  # removed — all animations on dungeon screen
+        cfg.setdefault("devices", [])
         cfg.setdefault("dungeon_screen", dict(_DL_DS_DEFAULT))
         ds = cfg["dungeon_screen"]
         ds.setdefault("current_ambient", None)
@@ -71,6 +77,7 @@ def dl_load() -> dict:
             "enabled": False,
             "events": {k: dict(v) for k, v in DL_DEFAULT_EVENTS.items()},
             "dungeon_screen": {**_DL_DS_DEFAULT, "current_ambient": None, "ambient_modes": dict(DL_DS_AMBIENT_DEFAULTS)},
+            "devices": [],
         }
 
 
@@ -162,6 +169,65 @@ async def dl_ds_apply_current_layer():
     await _dl_set(ip, _DL_DS_NEUTRAL)
 
 
+async def _dev_apply_ambient(dev_id: str):
+    """Apply the highest active layer for a simple device.
+    Skips if a roll animation is in progress for this device.
+    """
+    if dev_id in _dev_roll_timers:
+        return
+    cfg = dl_load()
+    dev = next((d for d in cfg.get("devices", []) if d["id"] == dev_id), None)
+    if not dev:
+        return
+    ip = dev.get("ip", "")
+    if not ip:
+        return
+    mode_key = _dev_ambient.get(dev_id)
+    if mode_key:
+        m = dev.get("ambient_modes", {}).get(mode_key)
+        if m:
+            state = {
+                "on": True, "bri": m["bri"],
+                "seg": [{"id": 0, "col": [m["color"], [0, 0, 0], [0, 0, 0]], "fx": m["fx"], "sx": m["sx"], "on": True}],
+            }
+            await _dl_set(ip, state)
+            return
+    # Nothing active — dim neutral
+    await _dl_set(ip, {"on": True, "bri": 10, "seg": [{"id": 0, "col": [[5, 5, 10]], "fx": 0, "on": True}]})
+
+
+async def _dev_trigger(dev_id: str, dev: dict, ev: dict):
+    """Layer 1: play a roll animation on a simple device.
+    Cancels any pending restore timer (rapid-fire safe).
+    """
+    existing = _dev_roll_timers.pop(dev_id, None)
+    if existing:
+        existing.cancel()
+
+    ip = dev.get("ip", "")
+    if not ip:
+        return
+
+    color = ev.get("color", [255, 255, 255])
+    effect = ev.get("effect", 0)
+    bri = ev.get("brightness", 200)
+    speed = ev.get("speed", 128)
+    duration_ms = ev.get("duration", 2000)
+
+    anim = {
+        "on": True, "bri": bri,
+        "seg": [{"id": 0, "col": [color, [0, 0, 0], [0, 0, 0]], "fx": effect, "sx": speed, "on": True}],
+    }
+
+    async def _restore():
+        await asyncio.sleep(duration_ms / 1000)
+        _dev_roll_timers.pop(dev_id, None)
+        await _dev_apply_ambient(dev_id)
+
+    _dev_roll_timers[dev_id] = asyncio.create_task(_restore())
+    await _dl_set(ip, anim)
+
+
 # ── WLED low-level helpers ─────────────────────────────────────────────────
 
 async def _dl_get(ip: str) -> Optional[dict]:
@@ -178,6 +244,45 @@ async def _dl_set(ip: str, state: dict) -> bool:
         async with httpx.AsyncClient(timeout=3) as c:
             r = await c.post(f"http://{ip}/json/state", json=state)
             return r.status_code == 200
+    except Exception:
+        return False
+
+
+async def _ha_set(entity_id: str, state: dict, ha_effect: str = "") -> bool:
+    """Send a WLED-style state dict to a Home Assistant light entity."""
+    if not entity_id:
+        return False
+    cfg = dl_load()
+    ha = cfg.get("home_assistant", {})
+    url_base = (ha.get("url") or "").rstrip("/")
+    token = ha.get("token", "")
+    if not url_base or not token:
+        return False
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            if not state.get("on", True):
+                r = await c.post(
+                    f"{url_base}/api/services/light/turn_off",
+                    json={"entity_id": entity_id},
+                    headers=headers,
+                )
+            else:
+                seg0 = state.get("seg", [{}])[0]
+                col = seg0.get("col", [[255, 255, 255]])[0]
+                body: dict = {
+                    "entity_id": entity_id,
+                    "rgb_color": col,
+                    "brightness": state.get("bri", 180),
+                }
+                if ha_effect:
+                    body["effect"] = ha_effect
+                r = await c.post(
+                    f"{url_base}/api/services/light/turn_on",
+                    json=body,
+                    headers=headers,
+                )
+            return r.status_code < 300
     except Exception:
         return False
 
@@ -256,6 +361,16 @@ async def dl_trigger(event_name: str):
     _dl_ds_roll_event = ev.get("label", event_name)
     _dl_ds_roll_timer = asyncio.create_task(_restore())
     await _dl_set(ip, anim)
+
+    # Fan out to simple devices
+    for dev in cfg.get("devices", []):
+        if not dev.get("enabled"):
+            continue
+        if _dev_manual.get(dev["id"]):
+            continue
+        dev_ev = dev.get("events", {}).get(event_name, {})
+        if dev_ev.get("enabled"):
+            asyncio.create_task(_dev_trigger(dev["id"], dev, dev_ev))
 
 
 # ── Dungeon Screen signals ─────────────────────────────────────────────────
@@ -338,6 +453,18 @@ def _dl_load_manual_mode():
     _dl_manual_mode = dl_load().get("manual_mode", False)
 
 _dl_load_manual_mode()
+
+
+def _dl_init_devices():
+    cfg = dl_load()
+    for dev in cfg.get("devices", []):
+        dev_id = dev.get("id")
+        if not dev_id:
+            continue
+        _dev_ambient[dev_id] = dev.get("current_ambient")
+        _dev_manual[dev_id] = dev.get("manual_mode", False)
+
+_dl_init_devices()
 
 
 # ── API Router ─────────────────────────────────────────────────────────────
@@ -643,3 +770,200 @@ async def dl_api_ds_corners_preview(body: dict):
     }
     asyncio.create_task(_dl_set(ip, state))
     return {"status": "ok"}
+
+
+# ── Simple Device endpoints ────────────────────────────────────────────────
+
+def _dev_find(cfg: dict, dev_id: str) -> dict:
+    dev = next((d for d in cfg.get("devices", []) if d["id"] == dev_id), None)
+    if not dev:
+        raise HTTPException(404, f"Device not found: {dev_id}")
+    return dev
+
+
+@router.get("/api/devices")
+async def dl_api_list_devices():
+    return dl_load().get("devices", [])
+
+
+@router.post("/api/devices")
+async def dl_api_create_device(body: dict):
+    name = (body.get("name") or "Device").strip()
+    ip   = (body.get("ip") or "").strip()
+    dev = {
+        "id":             str(uuid.uuid4())[:8],
+        "name":           name,
+        "ip":             ip,
+        "enabled":        True,
+        "brightness":     180,
+        "manual_mode":    False,
+        "current_ambient": None,
+        "ambient_modes":  {k: dict(v) for k, v in DL_DS_AMBIENT_DEFAULTS.items()},
+        "events":         {k: dict(v) for k, v in DL_DEFAULT_EVENTS.items()},
+    }
+    cfg = dl_load()
+    cfg.setdefault("devices", []).append(dev)
+    dl_save(cfg)
+    _dev_ambient[dev["id"]] = None
+    _dev_manual[dev["id"]]  = False
+    return dev
+
+
+@router.put("/api/devices/{dev_id}")
+async def dl_api_update_device(dev_id: str, body: dict):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    for k in ("name", "ip", "enabled", "brightness"):
+        if k in body:
+            dev[k] = body[k]
+    dl_save(cfg)
+    return dev
+
+
+@router.delete("/api/devices/{dev_id}")
+async def dl_api_delete_device(dev_id: str):
+    cfg = dl_load()
+    _dev_find(cfg, dev_id)  # raises 404 if missing
+    t = _dev_roll_timers.pop(dev_id, None)
+    if t:
+        t.cancel()
+    _dev_ambient.pop(dev_id, None)
+    _dev_manual.pop(dev_id, None)
+    cfg["devices"] = [d for d in cfg["devices"] if d["id"] != dev_id]
+    dl_save(cfg)
+    return {"status": "ok"}
+
+
+@router.get("/api/devices/{dev_id}/events")
+async def dl_api_get_device_events(dev_id: str):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    return dev.get("events", {})
+
+
+@router.put("/api/devices/{dev_id}/events/{event_key}")
+async def dl_api_put_device_event(dev_id: str, event_key: str, body: dict):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    dev.setdefault("events", {})[event_key] = body
+    dl_save(cfg)
+    return dev["events"][event_key]
+
+
+@router.get("/api/devices/{dev_id}/ambient")
+async def dl_api_get_device_ambient(dev_id: str):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    return {"current": _dev_ambient.get(dev_id), "modes": dev.get("ambient_modes", {})}
+
+
+@router.post("/api/devices/{dev_id}/ambient/{mode_key}")
+async def dl_api_activate_device_ambient(dev_id: str, mode_key: str):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    if mode_key not in dev.get("ambient_modes", {}):
+        raise HTTPException(404, f"Unknown ambient mode: {mode_key}")
+    _dev_ambient[dev_id] = mode_key
+    dev["current_ambient"] = mode_key
+    dl_save(cfg)
+    asyncio.create_task(_dev_apply_ambient(dev_id))
+    return {"status": "ok", "mode": mode_key}
+
+
+@router.put("/api/devices/{dev_id}/ambient/{mode_key}")
+async def dl_api_upsert_device_ambient(dev_id: str, mode_key: str, body: dict):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    dev.setdefault("ambient_modes", {})[mode_key] = {
+        "color": body.get("color", [255, 255, 255]),
+        "fx":    int(body.get("fx", 0)),
+        "bri":   int(body.get("bri", 150)),
+        "sx":    int(body.get("sx", 100)),
+    }
+    dl_save(cfg)
+    return dev["ambient_modes"][mode_key]
+
+
+@router.delete("/api/devices/{dev_id}/ambient/{mode_key}")
+async def dl_api_delete_device_ambient(dev_id: str, mode_key: str):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    modes = dev.get("ambient_modes", {})
+    if mode_key not in modes:
+        raise HTTPException(404, f"Ambient mode not found: {mode_key}")
+    del modes[mode_key]
+    if dev.get("current_ambient") == mode_key or _dev_ambient.get(dev_id) == mode_key:
+        dev["current_ambient"] = None
+        _dev_ambient[dev_id] = None
+    dl_save(cfg)
+    return {"status": "ok"}
+
+
+@router.get("/api/devices/{dev_id}/mode")
+async def dl_api_get_device_mode(dev_id: str):
+    cfg = dl_load()
+    _dev_find(cfg, dev_id)
+    return {"manual": _dev_manual.get(dev_id, False)}
+
+
+@router.post("/api/devices/{dev_id}/mode")
+async def dl_api_set_device_mode(dev_id: str, body: dict):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    manual = bool(body.get("manual", False))
+    _dev_manual[dev_id] = manual
+    dev["manual_mode"] = manual
+    dl_save(cfg)
+    if not manual:
+        asyncio.create_task(_dev_apply_ambient(dev_id))
+    return {"manual": manual}
+
+
+@router.post("/api/devices/{dev_id}/manual-apply")
+async def dl_api_device_manual_apply(dev_id: str, body: dict):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    ip = dev.get("ip", "")
+    if not ip:
+        return {"status": "no device"}
+    on = bool(body.get("on", True))
+    if not on:
+        await _dl_set(ip, {"on": False})
+        return {"status": "ok"}
+    color = body.get("color", [255, 255, 255])
+    fx  = int(body.get("fx", 0))
+    bri = int(body.get("bri", dev.get("brightness", 180)))
+    sx  = int(body.get("sx", 128))
+    state = {
+        "on": True, "bri": bri,
+        "seg": [{"id": 0, "col": [color, [0, 0, 0], [0, 0, 0]], "fx": fx, "sx": sx, "on": True}],
+    }
+    await _dl_set(ip, state)
+    return {"status": "ok"}
+
+
+@router.post("/api/devices/{dev_id}/sync-ambient")
+async def dl_api_device_sync_ambient(dev_id: str):
+    cfg = dl_load()
+    dev = _dev_find(cfg, dev_id)
+    ds_key = cfg.get("dungeon_screen", {}).get("current_ambient")
+    if not ds_key:
+        return {"synced_mode": None}
+    if ds_key in dev.get("ambient_modes", {}):
+        _dev_ambient[dev_id] = ds_key
+        dev["current_ambient"] = ds_key
+        dl_save(cfg)
+        asyncio.create_task(_dev_apply_ambient(dev_id))
+        return {"synced_mode": ds_key}
+    else:
+        m = cfg.get("dungeon_screen", {}).get("ambient_modes", {}).get(ds_key)
+        if not m:
+            return {"synced_mode": None}
+        ip = dev.get("ip", "")
+        if ip:
+            state = {
+                "on": True, "bri": m["bri"],
+                "seg": [{"id": 0, "col": [m["color"], [0, 0, 0], [0, 0, 0]], "fx": m["fx"], "sx": m["sx"], "on": True}],
+            }
+            await _dl_set(ip, state)
+        return {"synced_mode": None}
