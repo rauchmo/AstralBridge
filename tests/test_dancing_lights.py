@@ -87,7 +87,7 @@ def test_dl_load_adds_ambient_defaults_when_missing(tmp_path, monkeypatch):
     assert ds["current_ambient"] is None
 
 
-def test_dl_load_strips_devices_key(tmp_path, monkeypatch):
+def test_dl_load_preserves_devices_key(tmp_path, monkeypatch):
     import json
     cfg = {"enabled": True, "devices": [{"id": "x"}], "events": {}, "dungeon_screen": {}}
     f = tmp_path / "dancing_lights.json"
@@ -95,7 +95,7 @@ def test_dl_load_strips_devices_key(tmp_path, monkeypatch):
     monkeypatch.setattr(dl, "DL_CONFIG_FILE", f)
 
     result = dl.dl_load()
-    assert "devices" not in result
+    assert "devices" in result
 
 
 def test_dl_load_preserves_existing_ambient_modes(tmp_path, monkeypatch):
