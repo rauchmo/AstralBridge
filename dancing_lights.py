@@ -177,10 +177,7 @@ async def _dev_apply_ambient(dev_id: str):
         return
     cfg = dl_load()
     dev = next((d for d in cfg.get("devices", []) if d["id"] == dev_id), None)
-    if not dev:
-        return
-    ip = dev.get("ip", "")
-    if not ip:
+    if not dev or not _dev_has_target(dev):
         return
     mode_key = _dev_ambient.get(dev_id)
     if mode_key:
@@ -190,10 +187,10 @@ async def _dev_apply_ambient(dev_id: str):
                 "on": True, "bri": m["bri"],
                 "seg": [{"id": 0, "col": [m["color"], [0, 0, 0], [0, 0, 0]], "fx": m["fx"], "sx": m["sx"], "on": True}],
             }
-            await _dl_set(ip, state)
+            await _dev_set(dev, state, m.get("ha_effect", ""))
             return
     # Nothing active — dim neutral
-    await _dl_set(ip, {"on": True, "bri": 10, "seg": [{"id": 0, "col": [[5, 5, 10]], "fx": 0, "on": True}]})
+    await _dev_set(dev, {"on": True, "bri": 10, "seg": [{"id": 0, "col": [[5, 5, 10]], "fx": 0, "on": True}]})
 
 
 async def _dev_trigger(dev_id: str, dev: dict, ev: dict):
@@ -204,8 +201,7 @@ async def _dev_trigger(dev_id: str, dev: dict, ev: dict):
     if existing:
         existing.cancel()
 
-    ip = dev.get("ip", "")
-    if not ip:
+    if not _dev_has_target(dev):
         return
 
     color = ev.get("color", [255, 255, 255])
@@ -225,7 +221,7 @@ async def _dev_trigger(dev_id: str, dev: dict, ev: dict):
         await _dev_apply_ambient(dev_id)
 
     _dev_roll_timers[dev_id] = asyncio.create_task(_restore())
-    await _dl_set(ip, anim)
+    await _dev_set(dev, anim, ev.get("ha_effect", ""))
 
 
 # ── WLED low-level helpers ─────────────────────────────────────────────────
@@ -285,6 +281,20 @@ async def _ha_set(entity_id: str, state: dict, ha_effect: str = "") -> bool:
             return r.status_code < 300
     except Exception:
         return False
+
+
+def _dev_has_target(dev: dict) -> bool:
+    """Return True if device has a connection target (ip for WLED, entity_id for HA)."""
+    if dev.get("type") == "ha":
+        return bool(dev.get("entity_id", ""))
+    return bool(dev.get("ip", ""))
+
+
+async def _dev_set(dev: dict, state: dict, ha_effect: str = "") -> bool:
+    """Dispatch a WLED-style state to either a WLED or HA device."""
+    if dev.get("type") == "ha":
+        return await _ha_set(dev.get("entity_id", ""), state, ha_effect)
+    return await _dl_set(dev.get("ip", ""), state)
 
 
 # ── Event detection & triggering ───────────────────────────────────────────
@@ -959,11 +969,9 @@ async def dl_api_device_sync_ambient(dev_id: str):
         m = cfg.get("dungeon_screen", {}).get("ambient_modes", {}).get(ds_key)
         if not m:
             return {"synced_mode": None}
-        ip = dev.get("ip", "")
-        if ip:
-            state = {
-                "on": True, "bri": m["bri"],
-                "seg": [{"id": 0, "col": [m["color"], [0, 0, 0], [0, 0, 0]], "fx": m["fx"], "sx": m["sx"], "on": True}],
-            }
-            await _dl_set(ip, state)
+        state = {
+            "on": True, "bri": m["bri"],
+            "seg": [{"id": 0, "col": [m["color"], [0, 0, 0], [0, 0, 0]], "fx": m["fx"], "sx": m["sx"], "on": True}],
+        }
+        await _dev_set(dev, state, m.get("ha_effect", ""))
         return {"synced_mode": None}

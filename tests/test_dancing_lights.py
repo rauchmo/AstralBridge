@@ -636,3 +636,163 @@ async def test_ha_set_empty_entity_id_returns_false(ha_http):
     result = await dl._ha_set("", state, "")
     assert result is False
     assert len(ha_http) == 0
+
+
+# ── dev_config / dev_api_client fixtures ─────────────────────────────────────
+
+@pytest.fixture
+def dev_config(tmp_path, monkeypatch):
+    """Minimal config with an empty devices list for device-related tests."""
+    import json
+    cfg = {
+        "enabled": True,
+        "events": {k: dict(v) for k, v in dl.DL_DEFAULT_EVENTS.items()},
+        "dungeon_screen": {
+            "ip": "10.0.0.1",
+            "total_leds": 30,
+            "brightness": 180,
+            "players": [],
+            "corners": [],
+            "current_ambient": None,
+            "ambient_modes": dl.DL_DS_AMBIENT_DEFAULTS,
+        },
+        "devices": [],
+    }
+    config_file = tmp_path / "dancing_lights.json"
+    config_file.write_text(json.dumps(cfg))
+    monkeypatch.setattr(dl, "DL_CONFIG_FILE", config_file)
+    return cfg
+
+
+@pytest.fixture
+def dev_api_client(dev_config, mock_wled):
+    app = FastAPI()
+    app.include_router(dl.router)
+    return TestClient(app)
+
+
+# ── _dev_has_target ───────────────────────────────────────────────────────────
+
+def test_dev_has_target_wled_with_ip():
+    assert dl._dev_has_target({"type": "wled", "ip": "10.0.0.5"}) is True
+
+def test_dev_has_target_wled_without_ip():
+    assert dl._dev_has_target({"type": "wled", "ip": ""}) is False
+
+def test_dev_has_target_ha_with_entity():
+    assert dl._dev_has_target({"type": "ha", "entity_id": "light.x"}) is True
+
+def test_dev_has_target_ha_without_entity():
+    assert dl._dev_has_target({"type": "ha", "entity_id": ""}) is False
+
+def test_dev_has_target_defaults_to_wled_check():
+    # No type field → behaves as wled
+    assert dl._dev_has_target({"ip": "10.0.0.1"}) is True
+    assert dl._dev_has_target({"ip": ""}) is False
+
+
+# ── _dev_set dispatcher ───────────────────────────────────────────────────────
+
+@pytest.fixture
+def mock_ha_set(monkeypatch):
+    """Monkeypatches _ha_set so HA calls are captured without HTTP."""
+    calls = []
+    async def fake(entity_id, state, ha_effect=""):
+        calls.append({"entity_id": entity_id, "state": state, "ha_effect": ha_effect})
+        return True
+    monkeypatch.setattr(dl, "_ha_set", fake)
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_dev_set_wled_dispatches_to_dl_set(mock_wled, dev_config):
+    dev = {"type": "wled", "ip": "10.0.0.2"}
+    state = {"on": True, "bri": 100, "seg": [{"id": 0}]}
+    await dl._dev_set(dev, state)
+    assert len(mock_wled) == 1
+    assert mock_wled[0][0] == "10.0.0.2"
+
+
+@pytest.mark.asyncio
+async def test_dev_set_ha_dispatches_to_ha_set(mock_ha_set, dev_config):
+    dev = {"type": "ha", "entity_id": "light.table"}
+    state = {"on": True, "bri": 200, "seg": [{"id": 0, "col": [[255,0,0]]}]}
+    await dl._dev_set(dev, state, "colorloop")
+    assert len(mock_ha_set) == 1
+    assert mock_ha_set[0]["entity_id"] == "light.table"
+    assert mock_ha_set[0]["ha_effect"] == "colorloop"
+
+
+@pytest.mark.asyncio
+async def test_dev_set_no_type_falls_back_to_wled(mock_wled, dev_config):
+    dev = {"ip": "10.0.0.9"}  # no type key
+    state = {"on": True, "bri": 50, "seg": []}
+    await dl._dev_set(dev, state)
+    assert mock_wled[0][0] == "10.0.0.9"
+
+
+# ── _dev_apply_ambient with HA device ─────────────────────────────────────────
+
+@pytest.fixture
+def ha_dev_config(dev_config, mock_ha_set):
+    """Extends dev_config with an HA device ha001."""
+    cfg = dl.dl_load()
+    cfg["devices"].append({
+        "id": "ha001", "name": "Tischlampe", "type": "ha",
+        "ip": "", "entity_id": "light.table",
+        "enabled": True, "brightness": 180, "manual_mode": False,
+        "current_ambient": None,
+        "ambient_modes": {
+            "tavern": {"color": [255, 140, 0], "fx": 0, "bri": 150, "sx": 100, "ha_effect": "colorloop"},
+        },
+        "events": {k: dict(v) for k, v in dl.DL_DEFAULT_EVENTS.items()},
+    })
+    dl.dl_save(cfg)
+    dl._dev_ambient["ha001"] = None
+    dl._dev_manual["ha001"] = False
+    return dl.dl_load()
+
+
+@pytest.mark.asyncio
+async def test_dev_apply_ambient_ha_uses_ha_set(mock_ha_set, ha_dev_config):
+    dl._dev_ambient["ha001"] = "tavern"
+    await dl._dev_apply_ambient("ha001")
+    assert len(mock_ha_set) == 1
+    assert mock_ha_set[0]["entity_id"] == "light.table"
+    assert mock_ha_set[0]["ha_effect"] == "colorloop"
+
+
+@pytest.mark.asyncio
+async def test_dev_trigger_ha_uses_ha_set(mock_ha_set, ha_dev_config):
+    cfg = dl.dl_load()
+    dev = next(d for d in cfg["devices"] if d["id"] == "ha001")
+    dev["events"]["nat20"]["ha_effect"] = "flash"
+    ev = dev["events"]["nat20"]
+    await dl._dev_trigger("ha001", dev, ev)
+    assert len(mock_ha_set) == 1
+    assert mock_ha_set[0]["entity_id"] == "light.table"
+    assert mock_ha_set[0]["ha_effect"] == "flash"
+    t = dl._dev_roll_timers.pop("ha001", None)
+    if t: t.cancel()
+
+
+@pytest.mark.asyncio
+async def test_dev_apply_ambient_ha_neutral_when_no_ambient(mock_ha_set, ha_dev_config):
+    dl._dev_ambient["ha001"] = None
+    await dl._dev_apply_ambient("ha001")
+    assert len(mock_ha_set) == 1
+    assert mock_ha_set[0]["state"]["on"] is True
+    assert mock_ha_set[0]["ha_effect"] == ""
+
+
+@pytest.mark.asyncio
+async def test_sync_ambient_ha_unknown_key_uses_dev_set(mock_ha_set, ha_dev_config, dev_api_client):
+    cfg = dl.dl_load()
+    cfg["dungeon_screen"]["current_ambient"] = "hell"
+    cfg["dungeon_screen"]["ambient_modes"]["hell"] = {
+        "color": [200, 20, 0], "fx": 25, "bri": 220, "sx": 180, "ha_effect": ""
+    }
+    dl.dl_save(cfg)
+    r = dev_api_client.post("/dl/api/devices/ha001/sync-ambient")
+    assert r.status_code == 200
+    assert len(mock_ha_set) >= 1
