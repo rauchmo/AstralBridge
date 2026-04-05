@@ -656,7 +656,12 @@ def dev_config(tmp_path, monkeypatch):
             "current_ambient": None,
             "ambient_modes": dl.DL_DS_AMBIENT_DEFAULTS,
         },
-        "devices": [],
+        "devices": [
+            {"id": "dev001", "name": "TestDevice", "ip": "10.0.0.2",
+             "type": "wled", "entity_id": "", "enabled": True, "brightness": 180,
+             "manual_mode": False, "current_ambient": None, "ambient_modes": {},
+             "events": {}},
+        ],
     }
     config_file = tmp_path / "dancing_lights.json"
     config_file.write_text(json.dumps(cfg))
@@ -783,6 +788,47 @@ async def test_dev_apply_ambient_ha_neutral_when_no_ambient(mock_ha_set, ha_dev_
     assert len(mock_ha_set) == 1
     assert mock_ha_set[0]["state"]["on"] is True
     assert mock_ha_set[0]["ha_effect"] == ""
+
+
+# ── CRUD type/entity_id ───────────────────────────────────────────────────────
+
+def test_post_device_scaffolds_type_and_entity_id(dev_api_client):
+    r = dev_api_client.post("/dl/api/devices", json={"name": "Tischlampe", "ip": ""})
+    assert r.status_code == 200
+    dev = r.json()
+    assert dev["type"] == "wled"
+    assert dev["entity_id"] == ""
+
+
+def test_put_device_updates_type_and_entity_id(dev_api_client):
+    r = dev_api_client.put("/dl/api/devices/dev001",
+                           json={"type": "ha", "entity_id": "light.table"})
+    assert r.status_code == 200
+    cfg = dl.dl_load()
+    dev = next(d for d in cfg["devices"] if d["id"] == "dev001")
+    assert dev["type"] == "ha"
+    assert dev["entity_id"] == "light.table"
+
+
+# ── Ambient ha_effect passthrough ─────────────────────────────────────────────
+
+def test_put_device_ambient_stores_ha_effect(dev_api_client):
+    r = dev_api_client.put("/dl/api/devices/dev001/ambient/sunset",
+                           json={"color": [255, 80, 0], "fx": 2, "bri": 160, "sx": 90,
+                                 "ha_effect": "sunset"})
+    assert r.status_code == 200
+    cfg = dl.dl_load()
+    dev = next(d for d in cfg["devices"] if d["id"] == "dev001")
+    assert dev["ambient_modes"]["sunset"]["ha_effect"] == "sunset"
+
+
+def test_put_device_ambient_ha_effect_defaults_to_empty(dev_api_client):
+    r = dev_api_client.put("/dl/api/devices/dev001/ambient/plain",
+                           json={"color": [100, 100, 100], "fx": 0, "bri": 100, "sx": 50})
+    assert r.status_code == 200
+    cfg = dl.dl_load()
+    dev = next(d for d in cfg["devices"] if d["id"] == "dev001")
+    assert dev["ambient_modes"]["plain"]["ha_effect"] == ""
 
 
 @pytest.mark.asyncio

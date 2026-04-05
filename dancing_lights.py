@@ -804,6 +804,8 @@ async def dl_api_create_device(body: dict):
         "id":             str(uuid.uuid4())[:8],
         "name":           name,
         "ip":             ip,
+        "type":           "wled",
+        "entity_id":      "",
         "enabled":        True,
         "brightness":     180,
         "manual_mode":    False,
@@ -823,7 +825,7 @@ async def dl_api_create_device(body: dict):
 async def dl_api_update_device(dev_id: str, body: dict):
     cfg = dl_load()
     dev = _dev_find(cfg, dev_id)
-    for k in ("name", "ip", "enabled", "brightness"):
+    for k in ("name", "ip", "type", "entity_id", "enabled", "brightness"):
         if k in body:
             dev[k] = body[k]
     dl_save(cfg)
@@ -885,10 +887,11 @@ async def dl_api_upsert_device_ambient(dev_id: str, mode_key: str, body: dict):
     cfg = dl_load()
     dev = _dev_find(cfg, dev_id)
     dev.setdefault("ambient_modes", {})[mode_key] = {
-        "color": body.get("color", [255, 255, 255]),
-        "fx":    int(body.get("fx", 0)),
-        "bri":   int(body.get("bri", 150)),
-        "sx":    int(body.get("sx", 100)),
+        "color":     body.get("color", [255, 255, 255]),
+        "fx":        int(body.get("fx", 0)),
+        "bri":       int(body.get("bri", 150)),
+        "sx":        int(body.get("sx", 100)),
+        "ha_effect": body.get("ha_effect", ""),
     }
     dl_save(cfg)
     return dev["ambient_modes"][mode_key]
