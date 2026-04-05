@@ -870,3 +870,45 @@ def test_manual_apply_ha_no_entity_id_returns_no_device(mock_ha_set, dev_api_cli
     r = dev_api_client.post("/dl/api/devices/dev001/manual-apply", json={"on": True})
     assert r.status_code == 200
     assert r.json() == {"status": "no device"}
+
+
+# ── HA config endpoints ───────────────────────────────────────────────────────
+
+def test_get_ha_config_returns_url_and_token_set_false(dev_api_client, dev_config):
+    r = dev_api_client.get("/dl/api/ha-config")
+    assert r.status_code == 200
+    data = r.json()
+    assert "url" in data
+    assert "token_set" in data
+    assert data["token_set"] is False  # no HA config in default dev_config
+
+
+def test_get_ha_config_token_set_true_when_token_exists(dev_api_client, dev_config):
+    cfg = dl.dl_load()
+    cfg["home_assistant"] = {"url": "http://ha.local:8123", "token": "secret"}
+    dl.dl_save(cfg)
+    r = dev_api_client.get("/dl/api/ha-config")
+    data = r.json()
+    assert data["url"] == "http://ha.local:8123"
+    assert data["token_set"] is True
+    assert "token" not in data  # token never returned in plaintext
+
+
+def test_post_ha_config_saves_url_and_token(dev_api_client, dev_config):
+    r = dev_api_client.post("/dl/api/ha-config",
+                            json={"url": "http://ha.example:8123", "token": "newtoken"})
+    assert r.status_code == 200
+    cfg = dl.dl_load()
+    assert cfg["home_assistant"]["url"] == "http://ha.example:8123"
+    assert cfg["home_assistant"]["token"] == "newtoken"
+
+
+def test_post_ha_config_empty_token_does_not_overwrite_existing(dev_api_client, dev_config):
+    cfg = dl.dl_load()
+    cfg["home_assistant"] = {"url": "http://ha.local", "token": "existing"}
+    dl.dl_save(cfg)
+    r = dev_api_client.post("/dl/api/ha-config", json={"url": "http://new.local", "token": ""})
+    assert r.status_code == 200
+    cfg = dl.dl_load()
+    assert cfg["home_assistant"]["token"] == "existing"
+    assert cfg["home_assistant"]["url"] == "http://new.local"

@@ -978,3 +978,23 @@ async def dl_api_device_sync_ambient(dev_id: str):
         }
         await _dev_set(dev, state, m.get("ha_effect", ""))
         return {"synced_mode": None}
+
+
+# ── HA config endpoints ────────────────────────────────────────────────────────
+
+@router.get("/api/ha-config")
+async def dl_api_get_ha_config():
+    ha = dl_load().get("home_assistant", {})
+    return {"url": ha.get("url", ""), "token_set": bool(ha.get("token", ""))}
+
+
+@router.post("/api/ha-config")
+async def dl_api_set_ha_config(body: dict):
+    cfg = dl_load()
+    ha = cfg.setdefault("home_assistant", {})
+    ha["url"] = (body.get("url") or "").strip()
+    new_token = (body.get("token") or "").strip()
+    if new_token:
+        ha["token"] = new_token
+    dl_save(cfg)
+    return {"url": ha["url"], "token_set": bool(ha.get("token", ""))}
