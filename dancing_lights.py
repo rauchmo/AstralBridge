@@ -936,12 +936,12 @@ async def dl_api_set_device_mode(dev_id: str, body: dict):
 async def dl_api_device_manual_apply(dev_id: str, body: dict):
     cfg = dl_load()
     dev = _dev_find(cfg, dev_id)
-    ip = dev.get("ip", "")
-    if not ip:
+    if not _dev_has_target(dev):
         return {"status": "no device"}
+    ha_effect = body.get("ha_effect", "")
     on = bool(body.get("on", True))
     if not on:
-        await _dl_set(ip, {"on": False})
+        await _dev_set(dev, {"on": False}, ha_effect)
         return {"status": "ok"}
     color = body.get("color", [255, 255, 255])
     fx  = int(body.get("fx", 0))
@@ -951,7 +951,7 @@ async def dl_api_device_manual_apply(dev_id: str, body: dict):
         "on": True, "bri": bri,
         "seg": [{"id": 0, "col": [color, [0, 0, 0], [0, 0, 0]], "fx": fx, "sx": sx, "on": True}],
     }
-    await _dl_set(ip, state)
+    await _dev_set(dev, state, ha_effect)
     return {"status": "ok"}
 
 

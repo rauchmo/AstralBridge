@@ -842,3 +842,31 @@ async def test_sync_ambient_ha_unknown_key_uses_dev_set(mock_ha_set, ha_dev_conf
     r = dev_api_client.post("/dl/api/devices/ha001/sync-ambient")
     assert r.status_code == 200
     assert len(mock_ha_set) >= 1
+
+
+# ── dl_api_device_manual_apply with HA ────────────────────────────────────────
+
+def test_manual_apply_ha_device_calls_ha_set(mock_ha_set, ha_dev_config, dev_api_client):
+    r = dev_api_client.post("/dl/api/devices/ha001/manual-apply",
+                            json={"on": True, "color": [0, 200, 100], "bri": 180, "ha_effect": "flash"})
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
+    assert len(mock_ha_set) == 1
+    assert mock_ha_set[0]["entity_id"] == "light.table"
+    assert mock_ha_set[0]["ha_effect"] == "flash"
+
+
+def test_manual_apply_ha_off(mock_ha_set, ha_dev_config, dev_api_client):
+    r = dev_api_client.post("/dl/api/devices/ha001/manual-apply", json={"on": False})
+    assert r.status_code == 200
+    assert mock_ha_set[0]["state"]["on"] is False
+
+
+def test_manual_apply_ha_no_entity_id_returns_no_device(mock_ha_set, dev_api_client, dev_config):
+    cfg = dl.dl_load()
+    cfg["devices"][0]["type"] = "ha"
+    cfg["devices"][0]["entity_id"] = ""
+    dl.dl_save(cfg)
+    r = dev_api_client.post("/dl/api/devices/dev001/manual-apply", json={"on": True})
+    assert r.status_code == 200
+    assert r.json() == {"status": "no device"}
