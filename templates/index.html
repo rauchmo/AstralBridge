@@ -1033,6 +1033,7 @@
               <div style="display:flex;align-items:center;gap:10px;">
                 <span style="width:80px;color:var(--text-muted);">Effect</span>
                 <select id="dev-custom-fx" style="font-size:.9em;padding:2px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="devCustomChanged()"></select>
+                <input type="text" id="dev-custom-ha-fx" placeholder="z.B. colorloop" style="display:none;width:140px;" oninput="devCustomChanged()">
               </div>
               <div style="display:flex;align-items:center;gap:10px;">
                 <span style="width:80px;color:var(--text-muted);">Brightness</span>
@@ -2631,12 +2632,15 @@
     const data = await fetch(`/dl/api/devices/${_devSelected}/mode`).then(r => r.json()).catch(() => null);
     if (data) _devManualMode = data.manual;
     devUpdateModeUI(_devManualMode);
-    // Init custom editor effect dropdown
-    const fxSel = document.getElementById("dev-custom-fx");
-    if (fxSel && !fxSel.options.length) {
+    // Show correct effect input for device type
+    const isHa   = _devType === "ha";
+    const fxSel  = document.getElementById("dev-custom-fx");
+    const haFxIn = document.getElementById("dev-custom-ha-fx");
+    if (fxSel)  fxSel.style.display  = isHa ? "none" : "";
+    if (haFxIn) haFxIn.style.display = isHa ? "" : "none";
+    if (fxSel && !fxSel.options.length && !isHa) {
       fxSel.innerHTML = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
     }
-    // Init presets if manual
     if (_devManualMode) devRenderDevPresets();
   }
 
@@ -2717,12 +2721,13 @@
     // Pre-fill custom editor
     document.getElementById("dev-custom-color").value = dlRgbToHex(m.color || [255, 255, 255]);
     document.getElementById("dev-custom-fx").value = m.fx ?? 0;
+    document.getElementById("dev-custom-ha-fx").value = m.ha_effect || "";
     document.getElementById("dev-custom-bri").value = m.bri ?? 180;
     document.getElementById("devCustomBriLbl").textContent = m.bri ?? 180;
     document.getElementById("dev-custom-sx").value = m.sx ?? 128;
     document.getElementById("devCustomSxLbl").textContent = m.sx ?? 128;
     clearTimeout(_devCustomTimer);
-    await devManualApply({on: true, color: m.color, fx: m.fx, bri: m.bri, sx: m.sx});
+    await devManualApply({on: true, color: m.color, fx: m.fx, bri: m.bri, sx: m.sx, ha_effect: m.ha_effect || ""});
   }
 
   function devCustomChanged() {
@@ -2730,11 +2735,13 @@
     devRenderDevPresets();
     clearTimeout(_devCustomTimer);
     _devCustomTimer = setTimeout(() => {
-      const color = dlHexToRgb(document.getElementById("dev-custom-color").value);
-      const fx    = parseInt(document.getElementById("dev-custom-fx").value);
-      const bri   = parseInt(document.getElementById("dev-custom-bri").value);
-      const sx    = parseInt(document.getElementById("dev-custom-sx").value);
-      devManualApply({on: true, color, fx, bri, sx});
+      const isHa      = _devType === "ha";
+      const color     = dlHexToRgb(document.getElementById("dev-custom-color").value);
+      const fx        = isHa ? 0 : parseInt(document.getElementById("dev-custom-fx").value);
+      const bri       = parseInt(document.getElementById("dev-custom-bri").value);
+      const sx        = parseInt(document.getElementById("dev-custom-sx").value);
+      const ha_effect = isHa ? (document.getElementById("dev-custom-ha-fx").value || "") : "";
+      devManualApply({on: true, color, fx, bri, sx, ha_effect});
     }, 150);
   }
 
