@@ -944,9 +944,20 @@
     <!-- Device settings (hidden when no device) -->
     <div id="dev-settings" style="display:none;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-        <div style="flex:1;min-width:140px;">
+        <div style="width:160px;">
+          <label style="font-size:.75em;color:var(--text-muted);display:block;margin-bottom:2px;">Typ</label>
+          <select id="dev-type" onchange="devTypeChanged()" style="width:100%;font-size:.9em;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;">
+            <option value="wled">WLED</option>
+            <option value="ha">Home Assistant</option>
+          </select>
+        </div>
+        <div id="dev-ip-wrap" style="flex:1;min-width:130px;">
           <label style="font-size:.75em;color:var(--text-muted);display:block;margin-bottom:2px;">IP</label>
           <input type="text" id="dev-ip" style="width:100%;" onblur="devSaveHeader()">
+        </div>
+        <div id="dev-entity-wrap" style="flex:1;min-width:130px;display:none;">
+          <label style="font-size:.75em;color:var(--text-muted);display:block;margin-bottom:2px;">Entity ID</label>
+          <input type="text" id="dev-entity-id" placeholder="light.tischlampe" style="width:100%;" onblur="devSaveHeader()">
         </div>
         <label class="dl-toggle" style="margin-top:18px;">
           <input type="checkbox" id="dev-enabled" onchange="devSaveHeader()">
@@ -1825,6 +1836,7 @@
   // ── Simple Devices ─────────────────────────────────────────────────────────
   let _devList        = [];
   let _devSelected    = null;   // id of selected device
+  let _devType        = "wled"; // type of selected device
   let _devManualMode  = false;
   let _devEvents      = {};
   let _devAmbientModes = {};
@@ -2524,7 +2536,12 @@
     document.getElementById("dev-subtabs-container").style.display = "";
     document.getElementById("dev-delete-btn").style.display = "";
     // Populate header fields
+    _devType = dev.type || "wled";
+    document.getElementById("dev-type").value = _devType;
+    document.getElementById("dev-ip-wrap").style.display     = _devType === "ha" ? "none" : "";
+    document.getElementById("dev-entity-wrap").style.display = _devType === "ha" ? "" : "none";
     document.getElementById("dev-ip").value = dev.ip || "";
+    document.getElementById("dev-entity-id").value = dev.entity_id || "";
     document.getElementById("dev-enabled").checked = dev.enabled !== false;
     document.getElementById("dev-bri").value = dev.brightness ?? 180;
     document.getElementById("devBriLbl").textContent = dev.brightness ?? 180;
@@ -2541,6 +2558,12 @@
     document.getElementById("dev-add-form").style.display = "none";
     document.getElementById("dev-add-name").value = "";
     document.getElementById("dev-add-ip").value = "";
+  }
+
+  function devTypeChanged() {
+    _devType = document.getElementById("dev-type").value;
+    document.getElementById("dev-ip-wrap").style.display     = _devType === "ha" ? "none" : "";
+    document.getElementById("dev-entity-wrap").style.display = _devType === "ha" ? "" : "none";
   }
 
   async function devAddDevice() {
@@ -2578,12 +2601,13 @@
     const ip       = document.getElementById("dev-ip").value.trim();
     const enabled  = document.getElementById("dev-enabled").checked;
     const brightness = parseInt(document.getElementById("dev-bri").value);
+    const entity_id = document.getElementById("dev-entity-id").value.trim();
     await fetch(`/dl/api/devices/${_devSelected}`, {
       method: "PUT", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ip, enabled, brightness})
+      body: JSON.stringify({ip, type: _devType, entity_id, enabled, brightness})
     });
     const dev = _devList.find(d => d.id === _devSelected);
-    if (dev) { dev.ip = ip; dev.enabled = enabled; dev.brightness = brightness; }
+    if (dev) { dev.ip = ip; dev.type = _devType; dev.entity_id = entity_id; dev.enabled = enabled; dev.brightness = brightness; }
   }
 
   function switchDevTab(tab) {
