@@ -2570,6 +2570,8 @@
     _devType = document.getElementById("dev-type").value;
     document.getElementById("dev-ip-wrap").style.display     = _devType === "ha" ? "none" : "";
     document.getElementById("dev-entity-wrap").style.display = _devType === "ha" ? "" : "none";
+    devSaveHeader();
+    devLoadDashboard(); devLoadEvents(); devLoadAmbient();
   }
 
   async function devAddDevice() {
@@ -2757,14 +2759,8 @@
 
   async function devLoadEvents() {
     if (!_devSelected) return;
-    const effectOpts = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
     _devEvents = await fetch(`/dl/api/devices/${_devSelected}/events`).then(r => r.json()).catch(() => ({}));
     devRenderEvents(_devEvents);
-    // Populate effect dropdowns after rendering
-    Object.keys(_devEvents).forEach(key => {
-      const sel = document.getElementById(`dev-ev-fx-${key}`);
-      if (sel) sel.value = _devEvents[key].effect ?? 0;
-    });
   }
 
   function devRenderEvents(events) {
