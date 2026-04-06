@@ -483,6 +483,7 @@
     <button class="tab-btn active" id="tab-dl-events"    onclick="switchDlTab('events')">Events</button>
     <button class="tab-btn"        id="tab-dl-ambient"   onclick="switchDlTab('ambient')">Ambient</button>
     <button class="tab-btn"        id="tab-dl-config"    onclick="switchDlTab('config')">Config</button>
+    <button class="tab-btn"        id="tab-dl-devices"   onclick="switchDlTab('devices')">Devices</button>
   </div>
 
   <div class="status-row">
@@ -892,8 +893,212 @@
     </div>
   </div>
 
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">Home Assistant</h3>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;">
+        <label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">URL</label>
+        <input type="text" id="ha-url" placeholder="http://homeassistant.local:8123" style="width:100%;">
+      </div>
+      <div style="flex:1;min-width:160px;">
+        <label style="font-size:.78em;color:var(--text-muted);margin-bottom:4px;display:block;">Token</label>
+        <input type="password" id="ha-token" placeholder="Long-Lived Access Token" style="width:100%;">
+      </div>
+      <button class="btn primary small" onclick="dlSaveHaConfig()">Save</button>
+    </div>
+    <div id="ha-config-status" style="font-size:.78em;color:var(--text-muted);margin-top:8px;"></div>
+  </div>
+
 
 </div>
+
+<!-- DL: Devices -->
+<div id="view-dl-devices" class="dl-view" style="display:none;">
+
+  <!-- Device picker card -->
+  <div class="card">
+    <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">Simple Devices</h3>
+
+    <!-- Picker row -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <select id="dev-picker" onchange="devSelectDevice(this.value)"
+              style="flex:1;font-size:.9em;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;">
+      </select>
+      <button class="btn small primary" onclick="devShowAddForm()">+ Gerät</button>
+      <button class="btn small danger"  onclick="devDeleteDevice()" id="dev-delete-btn" style="display:none;">🗑</button>
+    </div>
+
+    <!-- Add form -->
+    <div id="dev-add-form" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px;">
+      <div style="font-size:.75em;color:var(--text-muted);margin-bottom:8px;">Neues Gerät</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+        <div><label style="font-size:.75em;color:var(--text-muted);display:block;margin-bottom:2px;">Name</label>
+          <input type="text" id="dev-add-name" placeholder="Tischrand" style="width:120px;"></div>
+        <div><label style="font-size:.75em;color:var(--text-muted);display:block;margin-bottom:2px;">IP</label>
+          <input type="text" id="dev-add-ip" placeholder="192.168.1.x" style="width:130px;"></div>
+        <button class="btn small primary" onclick="devAddDevice()">Hinzufügen</button>
+        <button class="btn small" onclick="devHideAddForm()">Abbrechen</button>
+      </div>
+    </div>
+
+    <!-- Device settings (hidden when no device) -->
+    <div id="dev-settings" style="display:none;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="flex:1;min-width:140px;">
+          <label style="font-size:.75em;color:var(--text-muted);display:block;margin-bottom:2px;">IP</label>
+          <input type="text" id="dev-ip" style="width:100%;" onblur="devSaveHeader()">
+        </div>
+        <label class="dl-toggle" style="margin-top:18px;">
+          <input type="checkbox" id="dev-enabled" onchange="devSaveHeader()">
+          <div class="dl-toggle-track"></div>
+          <span class="dl-toggle-label">Enabled</span>
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:.78em;color:var(--text-muted);width:80px;">Brightness</span>
+        <input type="range" id="dev-bri" min="10" max="255" value="180" style="width:120px;"
+               oninput="document.getElementById('devBriLbl').textContent=this.value" onchange="devSaveHeader()">
+        <span id="devBriLbl" style="font-size:.78em;color:var(--text-muted);width:30px;">180</span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="dev-empty" style="font-size:.82em;color:var(--text-muted);text-align:center;padding:16px 0;">
+      Noch kein Gerät — füge eines hinzu.
+    </div>
+  </div>
+
+  <!-- Sub-tabs (hidden when no device) -->
+  <div id="dev-subtabs-container" style="display:none;">
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button class="tab-btn active" id="tab-dev-dashboard" onclick="switchDevTab('dashboard')">Dashboard</button>
+      <button class="tab-btn"        id="tab-dev-events"    onclick="switchDevTab('events')">Events</button>
+      <button class="tab-btn"        id="tab-dev-ambient"   onclick="switchDevTab('ambient')">Ambient</button>
+    </div>
+
+    <!-- Dashboard sub-tab -->
+    <div id="view-dev-dashboard">
+      <div class="card">
+        <!-- Mode toggle -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+          <div style="flex:1">
+            <div style="font-size:.75em;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:3px;">Mode</div>
+            <div id="dev-mode-label" style="font-size:.95em;color:var(--text);">Automatic</div>
+            <div id="dev-mode-desc"  style="font-size:.78em;color:var(--text-muted);margin-top:2px;">Events laufen automatisch</div>
+          </div>
+          <div id="dev-mode-toggle" onclick="devToggleMode()"
+               style="width:52px;height:28px;background:#1a3a1a;border:1px solid #2a7a2a;border-radius:14px;cursor:pointer;position:relative;transition:background .2s">
+            <div id="dev-mode-knob" style="width:22px;height:22px;background:#4c4;border-radius:50%;position:absolute;top:2px;left:26px;transition:left .2s"></div>
+          </div>
+        </div>
+
+        <!-- Sync button -->
+        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+          <button class="btn small" onclick="devSyncAmbient()" id="dev-sync-btn"
+                  style="width:100%;justify-content:center;">⟳ Ambient vom Dungeon Screen übernehmen</button>
+        </div>
+
+        <!-- Auto content -->
+        <div id="dev-auto-content">
+          <div style="font-size:.78em;color:var(--text-muted);text-align:center;padding:16px 0;">
+            <div style="font-size:1.6em;margin-bottom:8px;">⚡</div>
+            Automatic — Würfelereignisse steuern die LEDs
+          </div>
+        </div>
+
+        <!-- Manual content -->
+        <div id="dev-manual-content" style="display:none;">
+          <div style="margin-bottom:14px;">
+            <div style="font-size:.7em;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:8px;">Presets</div>
+            <div id="dev-preset-buttons" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:14px;">
+            <div style="font-size:.7em;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:10px;">Custom</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:.82em;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:80px;color:var(--text-muted);">Color</span>
+                <input type="color" id="dev-custom-color" value="#ffffff" oninput="devCustomChanged()">
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:80px;color:var(--text-muted);">Effect</span>
+                <select id="dev-custom-fx" style="font-size:.9em;padding:2px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;" onchange="devCustomChanged()"></select>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:80px;color:var(--text-muted);">Brightness</span>
+                <input type="range" id="dev-custom-bri" min="10" max="255" value="180" style="width:120px;"
+                       oninput="document.getElementById('devCustomBriLbl').textContent=this.value; devCustomChanged()">
+                <span id="devCustomBriLbl" style="width:30px;color:var(--text-muted);">180</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="width:80px;color:var(--text-muted);">Speed</span>
+                <input type="range" id="dev-custom-sx" min="0" max="255" value="128" style="width:120px;"
+                       oninput="document.getElementById('devCustomSxLbl').textContent=this.value; devCustomChanged()">
+                <span id="devCustomSxLbl" style="width:30px;color:var(--text-muted);">128</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Events sub-tab -->
+    <div id="view-dev-events" style="display:none;">
+      <div class="card">
+        <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">Event Animationen</h3>
+        <div class="dl-event-grid" id="dev-event-grid"></div>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn primary small" onclick="devSaveAllEvents()">Alle Events speichern</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ambient sub-tab -->
+    <div id="view-dev-ambient" style="display:none;">
+      <div class="card">
+        <h3 style="font-size:.65em;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);">AMBIENT</h3>
+        <div id="dev-ambient-btns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+
+        <!-- Inline editor -->
+        <div id="dev-ambient-editor" style="display:none;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:14px;">
+          <div style="font-size:.75em;color:var(--text-muted);margin-bottom:8px;" id="dev-ambient-editor-label">Mode</div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <label style="font-size:.8em;color:var(--text-muted);">Color
+              <input type="color" id="dev-ambient-color" style="margin-left:6px;cursor:pointer;" oninput="devAmbientPatch()">
+            </label>
+            <label style="font-size:.8em;color:var(--text-muted);">Effect
+              <select id="dev-ambient-fx" style="margin-left:6px;font-size:.85em;" onchange="devAmbientPatch()"></select>
+            </label>
+            <label style="font-size:.8em;color:var(--text-muted);">Brightness
+              <input type="range" id="dev-ambient-bri" min="10" max="255" style="width:80px;margin-left:6px;" oninput="devAmbientPatch()">
+            </label>
+            <label style="font-size:.8em;color:var(--text-muted);">Speed
+              <input type="range" id="dev-ambient-sx" min="10" max="255" style="width:80px;margin-left:6px;" oninput="devAmbientPatch()">
+            </label>
+          </div>
+        </div>
+
+        <!-- Add mode form -->
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+          <div style="font-size:.78em;color:var(--text-muted);margin-bottom:8px;">Modus hinzufügen</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Name</label>
+              <input type="text" id="dev-add-amb-name" placeholder="z.B. city" style="width:100px;"></div>
+            <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Color</label>
+              <input type="color" id="dev-add-amb-color" value="#7c5cbf"></div>
+            <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
+              <select id="dev-add-amb-fx" style="font-size:.85em;"></select></div>
+            <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Brightness</label>
+              <input type="number" id="dev-add-amb-bri" value="150" min="10" max="255" style="width:65px;"></div>
+            <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Speed</label>
+              <input type="number" id="dev-add-amb-sx" value="100" min="10" max="255" style="width:65px;"></div>
+            <button class="btn primary small" onclick="devAddAmbientMode()">Hinzufügen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- end dev-subtabs-container -->
+
+</div><!-- end view-dl-devices -->
 
 <!-- Detail Modal -->
 <div class="modal-backdrop" id="modal-backdrop" onclick="closeModal(event)">
@@ -1371,7 +1576,7 @@
 
   function switchDlTab(tab) {
     _activeDlTab = tab;
-    ["dashboard","events","ambient","config"].forEach(t => {
+    ["dashboard","events","ambient","config","devices"].forEach(t => {
       const view = document.getElementById(`view-dl-${t}`);
       const btn  = document.getElementById(`tab-dl-${t}`);
       if (view) view.classList.toggle("active", t === tab);
@@ -1383,7 +1588,7 @@
   }
 
   async function dlLoadAll() {
-    await Promise.all([dlLoadDlConfig(), dlLoadEvents(), dlLoadDs(), dlLoadAmbient(), dlLoadDashboard()]);
+    await Promise.all([dlLoadDlConfig(), dlLoadHaConfig(), dlLoadEvents(), dlLoadDs(), dlLoadAmbient(), dlLoadDashboard(), devLoadAll()]);
   }
 
   let _dlPollInterval = null;
@@ -1616,6 +1821,18 @@
   }
 
   let _dlAmbientPatchTimer = null;
+
+  // ── Simple Devices ─────────────────────────────────────────────────────────
+  let _devList        = [];
+  let _devSelected    = null;   // id of selected device
+  let _devManualMode  = false;
+  let _devEvents      = {};
+  let _devAmbientModes = {};
+  let _devAmbientSelected = null;
+  let _devCustomTimer = null;
+  let _devAmbientPatchTimer = null;
+  let _devActivePreset = null;
+
   async function dlAmbientPatch() {
     if (!_dlAmbientSelected) return;
     clearTimeout(_dlAmbientPatchTimer);
@@ -1672,6 +1889,32 @@
     const cfg = await fetch("/dl/api/config").then(r => r.json()).catch(() => ({ enabled: false }));
     document.getElementById("dl-enabled-chk").checked = cfg.enabled;
     dlUpdateBadge(cfg.enabled);
+  }
+
+  async function dlLoadHaConfig() {
+    const data = await fetch("/dl/api/ha-config").then(r => r.json()).catch(() => null);
+    if (!data) return;
+    document.getElementById("ha-url").value = data.url || "";
+    const status = document.getElementById("ha-config-status");
+    if (status) status.textContent = data.token_set ? "Token gesetzt ✓" : "Kein Token";
+  }
+
+  async function dlSaveHaConfig() {
+    const url   = document.getElementById("ha-url").value.trim();
+    const token = document.getElementById("ha-token").value.trim();
+    const r = await fetch("/dl/api/ha-config", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({url, token})
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const status = document.getElementById("ha-config-status");
+      if (status) status.textContent = data.token_set ? "Token gesetzt ✓" : "Kein Token";
+      document.getElementById("ha-token").value = "";
+      toast("Home Assistant Konfiguration gespeichert.");
+    } else {
+      toast("Fehler beim Speichern.");
+    }
   }
 
   function dlUpdateBadge(enabled) {
@@ -2247,6 +2490,408 @@
 
   // Initialize DL badge on load
   fetch("/dl/api/config").then(r=>r.json()).then(cfg => dlUpdateBadge(cfg.enabled)).catch(()=>{});
+
+  // ── Task 11: Device picker JS + CRUD ──────────────────────────────────────
+
+  async function devLoadAll() {
+    _devList = await fetch("/dl/api/devices").then(r => r.json()).catch(() => []);
+    devRenderPicker();
+    if (_devList.length > 0) {
+      await devSelectDevice(_devSelected && _devList.find(d => d.id === _devSelected) ? _devSelected : _devList[0].id);
+    } else {
+      _devSelected = null;
+      document.getElementById("dev-settings").style.display = "none";
+      document.getElementById("dev-subtabs-container").style.display = "none";
+      document.getElementById("dev-empty").style.display = "";
+      document.getElementById("dev-delete-btn").style.display = "none";
+    }
+  }
+
+  function devRenderPicker() {
+    const picker = document.getElementById("dev-picker");
+    picker.innerHTML = _devList.length === 0
+      ? `<option value="">-- kein Gerät --</option>`
+      : _devList.map(d => `<option value="${d.id}"${d.id === _devSelected ? " selected" : ""}>${d.name}</option>`).join("");
+  }
+
+  async function devSelectDevice(id) {
+    _devSelected = id;
+    const dev = _devList.find(d => d.id === id);
+    if (!dev) return;
+    document.getElementById("dev-picker").value = id;
+    document.getElementById("dev-empty").style.display = "none";
+    document.getElementById("dev-settings").style.display = "";
+    document.getElementById("dev-subtabs-container").style.display = "";
+    document.getElementById("dev-delete-btn").style.display = "";
+    // Populate header fields
+    document.getElementById("dev-ip").value = dev.ip || "";
+    document.getElementById("dev-enabled").checked = dev.enabled !== false;
+    document.getElementById("dev-bri").value = dev.brightness ?? 180;
+    document.getElementById("devBriLbl").textContent = dev.brightness ?? 180;
+    // Load sub-tabs
+    await Promise.all([devLoadDashboard(), devLoadEvents(), devLoadAmbient()]);
+  }
+
+  function devShowAddForm() {
+    document.getElementById("dev-add-form").style.display = "";
+    document.getElementById("dev-add-name").focus();
+  }
+
+  function devHideAddForm() {
+    document.getElementById("dev-add-form").style.display = "none";
+    document.getElementById("dev-add-name").value = "";
+    document.getElementById("dev-add-ip").value = "";
+  }
+
+  async function devAddDevice() {
+    const name = document.getElementById("dev-add-name").value.trim();
+    const ip   = document.getElementById("dev-add-ip").value.trim();
+    if (!name) { toast("Bitte einen Namen eingeben."); return; }
+    const r = await fetch("/dl/api/devices", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name, ip})
+    });
+    if (!r.ok) { toast("Fehler beim Erstellen."); return; }
+    const dev = await r.json();
+    _devList.push(dev);
+    devHideAddForm();
+    devRenderPicker();
+    await devSelectDevice(dev.id);
+    toast(`Gerät "${dev.name}" hinzugefügt.`);
+  }
+
+  async function devDeleteDevice() {
+    if (!_devSelected) return;
+    const dev = _devList.find(d => d.id === _devSelected);
+    if (!dev || !confirm(`Gerät "${dev.name}" wirklich löschen?`)) return;
+    const r = await fetch(`/dl/api/devices/${_devSelected}`, {method: "DELETE"});
+    if (!r.ok) { toast("Fehler beim Löschen."); return; }
+    _devList = _devList.filter(d => d.id !== _devSelected);
+    _devSelected = null;
+    devRenderPicker();
+    toast(`Gerät gelöscht.`);
+    await devLoadAll();
+  }
+
+  async function devSaveHeader() {
+    if (!_devSelected) return;
+    const ip       = document.getElementById("dev-ip").value.trim();
+    const enabled  = document.getElementById("dev-enabled").checked;
+    const brightness = parseInt(document.getElementById("dev-bri").value);
+    await fetch(`/dl/api/devices/${_devSelected}`, {
+      method: "PUT", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ip, enabled, brightness})
+    });
+    const dev = _devList.find(d => d.id === _devSelected);
+    if (dev) { dev.ip = ip; dev.enabled = enabled; dev.brightness = brightness; }
+  }
+
+  function switchDevTab(tab) {
+    ["dashboard","events","ambient"].forEach(t => {
+      const view = document.getElementById(`view-dev-${t}`);
+      const btn  = document.getElementById(`tab-dev-${t}`);
+      if (view) view.style.display = t === tab ? "" : "none";
+      if (btn)  btn.classList.toggle("active", t === tab);
+    });
+  }
+
+  // ── Task 12: Dashboard sub-tab JS ─────────────────────────────────────────
+
+  async function devLoadDashboard() {
+    if (!_devSelected) return;
+    const data = await fetch(`/dl/api/devices/${_devSelected}/mode`).then(r => r.json()).catch(() => null);
+    if (data) _devManualMode = data.manual;
+    devUpdateModeUI(_devManualMode);
+    // Init custom editor effect dropdown
+    const fxSel = document.getElementById("dev-custom-fx");
+    if (fxSel && !fxSel.options.length) {
+      fxSel.innerHTML = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+    }
+    // Init presets if manual
+    if (_devManualMode) devRenderDevPresets();
+  }
+
+  function devUpdateModeUI(manual) {
+    const toggle = document.getElementById("dev-mode-toggle");
+    const knob   = document.getElementById("dev-mode-knob");
+    const label  = document.getElementById("dev-mode-label");
+    const desc   = document.getElementById("dev-mode-desc");
+    const autoC  = document.getElementById("dev-auto-content");
+    const manC   = document.getElementById("dev-manual-content");
+    if (!toggle) return;
+    if (manual) {
+      toggle.style.background = "#3a1a1a";
+      toggle.style.borderColor = "#7a2a2a";
+      knob.style.background = "#e55";
+      knob.style.left = "4px";
+      label.textContent = "Manual";
+      desc.textContent = "Automatische Signale pausiert";
+      autoC.style.display = "none";
+      manC.style.display = "";
+      devRenderDevPresets();
+    } else {
+      toggle.style.background = "#1a3a1a";
+      toggle.style.borderColor = "#2a7a2a";
+      knob.style.background = "#4c4";
+      knob.style.left = "26px";
+      label.textContent = "Automatic";
+      desc.textContent = "Events laufen automatisch";
+      autoC.style.display = "";
+      manC.style.display = "none";
+    }
+  }
+
+  async function devToggleMode() {
+    if (!_devSelected) return;
+    const r = await fetch(`/dl/api/devices/${_devSelected}/mode`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({manual: !_devManualMode})
+    });
+    if (!r.ok) return;
+    const data = await r.json();
+    _devManualMode = data.manual;
+    devUpdateModeUI(_devManualMode);
+  }
+
+  async function devSyncAmbient() {
+    if (!_devSelected) return;
+    const btn = document.getElementById("dev-sync-btn");
+    btn.disabled = true;
+    const r = await fetch(`/dl/api/devices/${_devSelected}/sync-ambient`, {method: "POST"});
+    btn.disabled = false;
+    if (r.ok) {
+      const data = await r.json();
+      const msg = data.synced_mode ? `Ambient "${data.synced_mode}" übernommen ✓` : "Ambient-Farben übernommen ✓";
+      toast(msg);
+      await devLoadAmbient();
+    } else {
+      toast("Sync fehlgeschlagen.");
+    }
+  }
+
+  function devRenderDevPresets() {
+    const container = document.getElementById("dev-preset-buttons");
+    if (!container) return;
+    const modes = _devAmbientModes;
+    container.innerHTML = Object.keys(modes).map(key =>
+      `<button class="btn small${_devActivePreset === key ? ' primary' : ''}"
+               onclick="devApplyPreset('${key}')">${key}</button>`
+    ).join("") +
+    `<button class="btn small" onclick="devManualApply({on:false})">⬛ Off</button>`;
+  }
+
+  async function devApplyPreset(key) {
+    const m = _devAmbientModes[key];
+    if (!m) return;
+    _devActivePreset = key;
+    devRenderDevPresets();
+    // Pre-fill custom editor
+    document.getElementById("dev-custom-color").value = dlRgbToHex(m.color || [255, 255, 255]);
+    document.getElementById("dev-custom-fx").value = m.fx ?? 0;
+    document.getElementById("dev-custom-bri").value = m.bri ?? 180;
+    document.getElementById("devCustomBriLbl").textContent = m.bri ?? 180;
+    document.getElementById("dev-custom-sx").value = m.sx ?? 128;
+    document.getElementById("devCustomSxLbl").textContent = m.sx ?? 128;
+    clearTimeout(_devCustomTimer);
+    await devManualApply({on: true, color: m.color, fx: m.fx, bri: m.bri, sx: m.sx});
+  }
+
+  function devCustomChanged() {
+    _devActivePreset = null;
+    devRenderDevPresets();
+    clearTimeout(_devCustomTimer);
+    _devCustomTimer = setTimeout(() => {
+      const color = dlHexToRgb(document.getElementById("dev-custom-color").value);
+      const fx    = parseInt(document.getElementById("dev-custom-fx").value);
+      const bri   = parseInt(document.getElementById("dev-custom-bri").value);
+      const sx    = parseInt(document.getElementById("dev-custom-sx").value);
+      devManualApply({on: true, color, fx, bri, sx});
+    }, 150);
+  }
+
+  async function devManualApply(params) {
+    if (!_devSelected) return;
+    await fetch(`/dl/api/devices/${_devSelected}/manual-apply`, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(params)
+    });
+  }
+
+  // ── Task 13: Events sub-tab JS ────────────────────────────────────────────
+
+  async function devLoadEvents() {
+    if (!_devSelected) return;
+    const effectOpts = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+    _devEvents = await fetch(`/dl/api/devices/${_devSelected}/events`).then(r => r.json()).catch(() => ({}));
+    devRenderEvents(_devEvents);
+    // Populate effect dropdowns after rendering
+    Object.keys(_devEvents).forEach(key => {
+      const sel = document.getElementById(`dev-ev-fx-${key}`);
+      if (sel) sel.value = _devEvents[key].effect ?? 0;
+    });
+  }
+
+  function devRenderEvents(events) {
+    const grid = document.getElementById("dev-event-grid");
+    if (!grid) return;
+    const effectOpts = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+    grid.innerHTML = Object.entries(events).map(([key, ev]) => `
+      <div class="dl-event-card" id="dev-ecard-${key}">
+        <div class="dl-ev-header">
+          <span class="dl-ev-icon">${DL_ICONS[key] || "🎲"}</span>
+          <span class="dl-ev-name">${ev.label || key}</span>
+          <label class="dl-toggle"><input type="checkbox" id="dev-ev-en-${key}" ${ev.enabled ? "checked" : ""}><div class="dl-toggle-track"></div></label>
+        </div>
+        <div class="dl-ev-row"><label>Color</label><input type="color" id="dev-ev-col-${key}" value="${dlRgbToHex(ev.color || [255,255,255])}">
+          <div style="flex:1"></div><label style="width:auto;margin:0;">Effect</label>
+          <select id="dev-ev-fx-${key}" style="width:115px;">${effectOpts}</select></div>
+        <div class="dl-ev-row"><label>Brightness</label>
+          <input type="range" id="dev-ev-bri-${key}" min="0" max="255" value="${ev.brightness ?? 200}"
+                 oninput="document.getElementById('dev-bv-${key}').textContent=this.value">
+          <span class="dl-slider-val" id="dev-bv-${key}">${ev.brightness ?? 200}</span></div>
+        <div class="dl-ev-row"><label>Speed</label>
+          <input type="range" id="dev-ev-spd-${key}" min="0" max="255" value="${ev.speed ?? 128}"
+                 oninput="document.getElementById('dev-sv-${key}').textContent=this.value">
+          <span class="dl-slider-val" id="dev-sv-${key}">${ev.speed ?? 128}</span></div>
+        <div class="dl-ev-row"><label>Duration</label>
+          <input type="number" id="dev-ev-dur-${key}" value="${ev.duration ?? 2000}" min="500" max="10000" step="100" style="width:80px;">
+          <span style="font-size:.75em;color:var(--text-muted);">ms</span></div>
+      </div>`).join("");
+    Object.entries(events).forEach(([key, ev]) => {
+      const sel = document.getElementById(`dev-ev-fx-${key}`);
+      if (sel) sel.value = ev.effect ?? 0;
+    });
+  }
+
+  function devCollectEvents() {
+    return Object.fromEntries(Object.entries(_devEvents).map(([key, ev]) => [key, {
+      label:      ev.label,
+      enabled:    document.getElementById(`dev-ev-en-${key}`)?.checked ?? ev.enabled,
+      color:      dlHexToRgb(document.getElementById(`dev-ev-col-${key}`)?.value || "#ffffff"),
+      effect:     parseInt(document.getElementById(`dev-ev-fx-${key}`)?.value ?? ev.effect),
+      brightness: parseInt(document.getElementById(`dev-ev-bri-${key}`)?.value ?? ev.brightness),
+      speed:      parseInt(document.getElementById(`dev-ev-spd-${key}`)?.value ?? ev.speed),
+      duration:   parseInt(document.getElementById(`dev-ev-dur-${key}`)?.value ?? ev.duration),
+    }]));
+  }
+
+  async function devSaveAllEvents() {
+    if (!_devSelected) return;
+    const events = devCollectEvents();
+    // PUT each event individually
+    await Promise.all(Object.entries(events).map(([key, ev]) =>
+      fetch(`/dl/api/devices/${_devSelected}/events/${key}`, {
+        method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(ev)
+      })
+    ));
+    toast("Events gespeichert!");
+  }
+
+  // ── Task 14: Ambient sub-tab JS ───────────────────────────────────────────
+
+  async function devLoadAmbient() {
+    if (!_devSelected) return;
+    const data = await fetch(`/dl/api/devices/${_devSelected}/ambient`).then(r => r.json()).catch(() => null);
+    if (!data) return;
+    _devAmbientModes    = data.modes || {};
+    _devAmbientSelected = data.current || null;
+    devRenderAmbientButtons();
+    // Populate add-mode effect dropdown
+    const fxSel = document.getElementById("dev-add-amb-fx");
+    if (fxSel && !fxSel.options.length) {
+      fxSel.innerHTML = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+    }
+    const editorFx = document.getElementById("dev-ambient-fx");
+    if (editorFx && !editorFx.options.length) {
+      editorFx.innerHTML = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+    }
+  }
+
+  function devRenderAmbientButtons() {
+    const container = document.getElementById("dev-ambient-btns");
+    if (!container) return;
+    container.innerHTML = Object.keys(_devAmbientModes).map(key => {
+      const active = key === _devAmbientSelected;
+      return `<button class="btn small${active ? ' primary' : ''}" onclick="devActivateAmbient('${key}')">${key}
+        <span onclick="event.stopPropagation();devDeleteAmbientMode('${key}')"
+              style="margin-left:6px;opacity:.5;font-size:.85em;cursor:pointer;">✕</span>
+      </button>`;
+    }).join("") +
+    `<button class="btn small" onclick="devClearAmbient()">⬛ Off</button>`;
+  }
+
+  async function devActivateAmbient(key) {
+    if (!_devSelected) return;
+    const r = await fetch(`/dl/api/devices/${_devSelected}/ambient/${key}`, {method: "POST"});
+    if (!r.ok) { toast("Fehler beim Aktivieren."); return; }
+    _devAmbientSelected = key;
+    devRenderAmbientButtons();
+    // Show inline editor
+    const m = _devAmbientModes[key];
+    document.getElementById("dev-ambient-editor-label").textContent = key;
+    document.getElementById("dev-ambient-color").value = dlRgbToHex(m.color || [255, 255, 255]);
+    document.getElementById("dev-ambient-fx").value = m.fx ?? 0;
+    document.getElementById("dev-ambient-bri").value = m.bri ?? 150;
+    document.getElementById("dev-ambient-sx").value = m.sx ?? 100;
+    document.getElementById("dev-ambient-editor").style.display = "";
+  }
+
+  async function devClearAmbient() {
+    _devAmbientSelected = null;
+    devRenderAmbientButtons();
+    document.getElementById("dev-ambient-editor").style.display = "none";
+    await devManualApply({on: false});
+  }
+
+  function devAmbientPatch() {
+    if (!_devAmbientSelected) return;
+    clearTimeout(_devAmbientPatchTimer);
+    _devAmbientPatchTimer = setTimeout(async () => {
+      const color = dlHexToRgb(document.getElementById("dev-ambient-color").value);
+      const fx    = parseInt(document.getElementById("dev-ambient-fx").value);
+      const bri   = parseInt(document.getElementById("dev-ambient-bri").value);
+      const sx    = parseInt(document.getElementById("dev-ambient-sx").value);
+      _devAmbientModes[_devAmbientSelected] = {...(_devAmbientModes[_devAmbientSelected] || {}), color, fx, bri, sx};
+      await fetch(`/dl/api/devices/${_devSelected}/ambient/${_devAmbientSelected}`, {
+        method: "PUT", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({color, fx, bri, sx})
+      });
+    }, 400);
+  }
+
+  async function devDeleteAmbientMode(key) {
+    if (!_devSelected) return;
+    if (!confirm(`Ambient-Modus "${key}" löschen?`)) return;
+    const r = await fetch(`/dl/api/devices/${_devSelected}/ambient/${key}`, {method: "DELETE"});
+    if (!r.ok) { toast("Fehler beim Löschen."); return; }
+    delete _devAmbientModes[key];
+    if (_devAmbientSelected === key) {
+      _devAmbientSelected = null;
+      document.getElementById("dev-ambient-editor").style.display = "none";
+    }
+    devRenderAmbientButtons();
+    toast(`Modus "${key}" gelöscht.`);
+  }
+
+  async function devAddAmbientMode() {
+    if (!_devSelected) return;
+    const name = document.getElementById("dev-add-amb-name").value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (!name) { toast("Bitte einen Namen eingeben."); return; }
+    if (_devAmbientModes[name]) { toast(`Modus "${name}" existiert bereits.`); return; }
+    const color = dlHexToRgb(document.getElementById("dev-add-amb-color").value);
+    const fx    = parseInt(document.getElementById("dev-add-amb-fx").value);
+    const bri   = parseInt(document.getElementById("dev-add-amb-bri").value);
+    const sx    = parseInt(document.getElementById("dev-add-amb-sx").value);
+    const r = await fetch(`/dl/api/devices/${_devSelected}/ambient/${name}`, {
+      method: "PUT", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({color, fx, bri, sx})
+    });
+    if (!r.ok) { toast("Fehler beim Erstellen."); return; }
+    _devAmbientModes[name] = {color, fx, bri, sx};
+    devRenderAmbientButtons();
+    document.getElementById("dev-add-amb-name").value = "";
+    toast(`Modus "${name}" hinzugefügt.`);
+  }
 </script>
 </body>
 </html>
