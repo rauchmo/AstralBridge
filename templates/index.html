@@ -2759,6 +2759,7 @@
     const grid = document.getElementById("dev-event-grid");
     if (!grid) return;
     const effectOpts = DL_EFFECTS.map(([id, name]) => `<option value="${id}">${name}</option>`).join("");
+    const isHa = _devType === "ha";
     grid.innerHTML = Object.entries(events).map(([key, ev]) => `
       <div class="dl-event-card" id="dev-ecard-${key}">
         <div class="dl-ev-header">
@@ -2768,7 +2769,10 @@
         </div>
         <div class="dl-ev-row"><label>Color</label><input type="color" id="dev-ev-col-${key}" value="${dlRgbToHex(ev.color || [255,255,255])}">
           <div style="flex:1"></div><label style="width:auto;margin:0;">Effect</label>
-          <select id="dev-ev-fx-${key}" style="width:115px;">${effectOpts}</select></div>
+          ${isHa
+            ? `<input type="text" id="dev-ev-fx-${key}" placeholder="z.B. colorloop" value="${ev.ha_effect || ''}" style="width:115px;">`
+            : `<select id="dev-ev-fx-${key}" style="width:115px;">${effectOpts}</select>`
+          }</div>
         <div class="dl-ev-row"><label>Brightness</label>
           <input type="range" id="dev-ev-bri-${key}" min="0" max="255" value="${ev.brightness ?? 200}"
                  oninput="document.getElementById('dev-bv-${key}').textContent=this.value">
@@ -2781,18 +2785,22 @@
           <input type="number" id="dev-ev-dur-${key}" value="${ev.duration ?? 2000}" min="500" max="10000" step="100" style="width:80px;">
           <span style="font-size:.75em;color:var(--text-muted);">ms</span></div>
       </div>`).join("");
-    Object.entries(events).forEach(([key, ev]) => {
-      const sel = document.getElementById(`dev-ev-fx-${key}`);
-      if (sel) sel.value = ev.effect ?? 0;
-    });
+    if (!isHa) {
+      Object.entries(events).forEach(([key, ev]) => {
+        const sel = document.getElementById(`dev-ev-fx-${key}`);
+        if (sel) sel.value = ev.effect ?? 0;
+      });
+    }
   }
 
   function devCollectEvents() {
+    const isHa = _devType === "ha";
     return Object.fromEntries(Object.entries(_devEvents).map(([key, ev]) => [key, {
       label:      ev.label,
       enabled:    document.getElementById(`dev-ev-en-${key}`)?.checked ?? ev.enabled,
       color:      dlHexToRgb(document.getElementById(`dev-ev-col-${key}`)?.value || "#ffffff"),
-      effect:     parseInt(document.getElementById(`dev-ev-fx-${key}`)?.value ?? ev.effect),
+      effect:     isHa ? (ev.effect ?? 0) : parseInt(document.getElementById(`dev-ev-fx-${key}`)?.value ?? ev.effect),
+      ha_effect:  isHa ? (document.getElementById(`dev-ev-fx-${key}`)?.value || "") : (ev.ha_effect || ""),
       brightness: parseInt(document.getElementById(`dev-ev-bri-${key}`)?.value ?? ev.brightness),
       speed:      parseInt(document.getElementById(`dev-ev-spd-${key}`)?.value ?? ev.speed),
       duration:   parseInt(document.getElementById(`dev-ev-dur-${key}`)?.value ?? ev.duration),
