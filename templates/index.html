@@ -1076,8 +1076,11 @@
             <label style="font-size:.8em;color:var(--text-muted);">Color
               <input type="color" id="dev-ambient-color" style="margin-left:6px;cursor:pointer;" oninput="devAmbientPatch()">
             </label>
-            <label style="font-size:.8em;color:var(--text-muted);">Effect
+            <label id="dev-ambient-fx-wrap" style="font-size:.8em;color:var(--text-muted);">Effect
               <select id="dev-ambient-fx" style="margin-left:6px;font-size:.85em;" onchange="devAmbientPatch()"></select>
+            </label>
+            <label id="dev-ambient-ha-fx-wrap" style="font-size:.8em;color:var(--text-muted);display:none;">Effect
+              <input type="text" id="dev-ambient-ha-fx" placeholder="z.B. colorloop" style="margin-left:6px;width:100px;" oninput="devAmbientPatch()">
             </label>
             <label style="font-size:.8em;color:var(--text-muted);">Brightness
               <input type="range" id="dev-ambient-bri" min="10" max="255" style="width:80px;margin-left:6px;" oninput="devAmbientPatch()">
@@ -1096,8 +1099,10 @@
               <input type="text" id="dev-add-amb-name" placeholder="z.B. city" style="width:100px;"></div>
             <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Color</label>
               <input type="color" id="dev-add-amb-color" value="#7c5cbf"></div>
-            <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
+            <div id="dev-add-amb-fx-wrap"><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
               <select id="dev-add-amb-fx" style="font-size:.85em;"></select></div>
+            <div id="dev-add-amb-ha-fx-wrap" style="display:none;"><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Effect</label>
+              <input type="text" id="dev-add-amb-ha-fx" placeholder="colorloop" style="width:90px;"></div>
             <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Brightness</label>
               <input type="number" id="dev-add-amb-bri" value="150" min="10" max="255" style="width:65px;"></div>
             <div><label style="font-size:.78em;color:var(--text-muted);display:block;margin-bottom:3px;">Speed</label>
@@ -2827,6 +2832,15 @@
     if (!data) return;
     _devAmbientModes    = data.modes || {};
     _devAmbientSelected = data.current || null;
+    const isHa = _devType === "ha";
+    const fxWrap      = document.getElementById("dev-ambient-fx-wrap");
+    const haFxWrap    = document.getElementById("dev-ambient-ha-fx-wrap");
+    const addFxWrap   = document.getElementById("dev-add-amb-fx-wrap");
+    const addHaFxWrap = document.getElementById("dev-add-amb-ha-fx-wrap");
+    if (fxWrap)      fxWrap.style.display      = isHa ? "none" : "";
+    if (haFxWrap)    haFxWrap.style.display     = isHa ? "" : "none";
+    if (addFxWrap)   addFxWrap.style.display    = isHa ? "none" : "";
+    if (addHaFxWrap) addHaFxWrap.style.display  = isHa ? "" : "none";
     devRenderAmbientButtons();
     // Populate add-mode effect dropdown
     const fxSel = document.getElementById("dev-add-amb-fx");
@@ -2863,6 +2877,7 @@
     document.getElementById("dev-ambient-editor-label").textContent = key;
     document.getElementById("dev-ambient-color").value = dlRgbToHex(m.color || [255, 255, 255]);
     document.getElementById("dev-ambient-fx").value = m.fx ?? 0;
+    document.getElementById("dev-ambient-ha-fx").value = m.ha_effect || "";
     document.getElementById("dev-ambient-bri").value = m.bri ?? 150;
     document.getElementById("dev-ambient-sx").value = m.sx ?? 100;
     document.getElementById("dev-ambient-editor").style.display = "";
@@ -2879,14 +2894,16 @@
     if (!_devAmbientSelected) return;
     clearTimeout(_devAmbientPatchTimer);
     _devAmbientPatchTimer = setTimeout(async () => {
-      const color = dlHexToRgb(document.getElementById("dev-ambient-color").value);
-      const fx    = parseInt(document.getElementById("dev-ambient-fx").value);
-      const bri   = parseInt(document.getElementById("dev-ambient-bri").value);
-      const sx    = parseInt(document.getElementById("dev-ambient-sx").value);
-      _devAmbientModes[_devAmbientSelected] = {...(_devAmbientModes[_devAmbientSelected] || {}), color, fx, bri, sx};
+      const isHa     = _devType === "ha";
+      const color    = dlHexToRgb(document.getElementById("dev-ambient-color").value);
+      const fx       = isHa ? 0 : parseInt(document.getElementById("dev-ambient-fx").value);
+      const bri      = parseInt(document.getElementById("dev-ambient-bri").value);
+      const sx       = parseInt(document.getElementById("dev-ambient-sx").value);
+      const ha_effect = isHa ? (document.getElementById("dev-ambient-ha-fx").value || "") : "";
+      _devAmbientModes[_devAmbientSelected] = {...(_devAmbientModes[_devAmbientSelected] || {}), color, fx, bri, sx, ha_effect};
       await fetch(`/dl/api/devices/${_devSelected}/ambient/${_devAmbientSelected}`, {
         method: "PUT", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({color, fx, bri, sx})
+        body: JSON.stringify({color, fx, bri, sx, ha_effect})
       });
     }, 400);
   }
@@ -2910,16 +2927,18 @@
     const name = document.getElementById("dev-add-amb-name").value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
     if (!name) { toast("Bitte einen Namen eingeben."); return; }
     if (_devAmbientModes[name]) { toast(`Modus "${name}" existiert bereits.`); return; }
-    const color = dlHexToRgb(document.getElementById("dev-add-amb-color").value);
-    const fx    = parseInt(document.getElementById("dev-add-amb-fx").value);
-    const bri   = parseInt(document.getElementById("dev-add-amb-bri").value);
-    const sx    = parseInt(document.getElementById("dev-add-amb-sx").value);
+    const isHa      = _devType === "ha";
+    const color     = dlHexToRgb(document.getElementById("dev-add-amb-color").value);
+    const fx        = isHa ? 0 : parseInt(document.getElementById("dev-add-amb-fx").value);
+    const bri       = parseInt(document.getElementById("dev-add-amb-bri").value);
+    const sx        = parseInt(document.getElementById("dev-add-amb-sx").value);
+    const ha_effect = isHa ? (document.getElementById("dev-add-amb-ha-fx").value || "") : "";
     const r = await fetch(`/dl/api/devices/${_devSelected}/ambient/${name}`, {
       method: "PUT", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({color, fx, bri, sx})
+      body: JSON.stringify({color, fx, bri, sx, ha_effect})
     });
     if (!r.ok) { toast("Fehler beim Erstellen."); return; }
-    _devAmbientModes[name] = {color, fx, bri, sx};
+    _devAmbientModes[name] = {color, fx, bri, sx, ha_effect};
     devRenderAmbientButtons();
     document.getElementById("dev-add-amb-name").value = "";
     toast(`Modus "${name}" hinzugefügt.`);
