@@ -10,7 +10,7 @@ A two-part system that syncs **D&D Beyond** dice rolls into **FoundryVTT** as na
 D&D Beyond (browser) ──WebSocket──▶ Python Bridge ──WebSocket──▶ FoundryVTT Module
 ```
 
-1. **Python Bridge** (`bridge.py`, `dancing_lights.py`, `logger.py`) — connects to the D&D Beyond game log WebSocket, parses incoming rolls, and forwards them to all connected Foundry clients. Ships with a web dashboard at `http://host:8765`.
+1. **Python Bridge** — connects to the D&D Beyond game log WebSocket, parses incoming rolls, and forwards them to all connected Foundry clients. Ships with a web dashboard at `http://host:8765`.
 2. **Foundry Module** (`/modules/astral-bridge/`) — receives rolls from the bridge and creates native Foundry chat rolls with the exact dice results from DDB.
 
 ---
@@ -29,15 +29,16 @@ D&D Beyond (browser) ──WebSocket──▶ Python Bridge ──WebSocket─�
 - Spell & weapon lookup via [D&D 5e API](https://www.dnd5eapi.co/) — shows spell school, damage type, weapon properties, and flavour text in chat
 - Critical hit detection with gold ★ CRIT badge
 - Multi-target support with pre-selection of manually targeted tokens
+- **Outgoing webhooks** — forward roll payloads to any HTTP endpoint (e.g. Discord, n8n)
 - **Web dashboard** — live log stream, roll statistics with charts, roll history with detail modal, config editor
-- **Dancing Lights** — WLED LED strip integration; triggers ambient lighting effects for dice events and combat turns; includes a dashboard with Automatic/Manual mode toggle for direct LED control
+- **Dancing Lights** — WLED LED strip + Home Assistant light integration; triggers ambient lighting effects for dice events and combat turns; includes a dashboard with Automatic/Manual mode toggle for direct LED control
 
 ---
 
 ## Requirements
 
 ### Python Bridge
-- Python 3.10+ **or** Docker
+- Python 3.12+ **or** Docker
 
 ### Foundry Module
 - FoundryVTT v12 or v13
@@ -71,7 +72,7 @@ docker compose up -d
 **Option B — Python directly:**
 
 ```bash
-pip install fastapi uvicorn websocket-client requests python-dotenv pydantic
+pip install fastapi "uvicorn[standard]" websocket-client requests httpx python-dotenv pydantic
 python3 bridge.py
 ```
 
@@ -103,24 +104,25 @@ In FoundryVTT: **Settings → Module Settings → AstralBridge**
 
 The bridge ships a built-in dashboard at `http://host:8765`:
 
-- **Dashboard** — live log stream + recent rolls; click any roll for full detail (dice, raw JSON, resend)
+- **Live** — live log stream + recent rolls; click any roll for full detail (dice, raw JSON, resend)
 - **Statistics** — Nat 20s, Nat 1s, average per character, roll distribution charts
-- **Config** — update credentials and restart the DDB connection without touching the terminal
+- **Settings** — update credentials and restart the DDB connection without touching the terminal
+- **Dancing Lights** — LED lighting control (see below)
 
 ---
 
 ## Dancing Lights
 
-Optional WLED LED strip integration for physical ambiance at the table. Configure under the **Dancing Lights** section of the web dashboard.
+Optional LED lighting integration for physical ambiance at the table. Supports **WLED** LED strips and **Home Assistant** lights — mix and match multiple devices. Configure under the **Dancing Lights** section of the web dashboard.
 
-**Tabs:**
+### Dashboard tabs
 
-- **Dashboard** — Automatic/Manual mode toggle. In Automatic mode, dice events and combat turns drive the LEDs. In Manual mode, automatic signals are suspended and you control the strip directly via preset buttons or a custom color/effect/brightness/speed editor.
+- **Dashboard** — Automatic/Manual mode toggle. In Automatic mode, dice events and combat turns drive the LEDs. In Manual mode, automatic signals are suspended and you control lights directly via preset buttons or a custom color/effect/brightness/speed editor.
 - **Events** — configure which roll events trigger animations (nat 20, nat 1, damage, heal, …) and set their color, effect, brightness, speed, and duration.
 - **Ambient** — define named ambient lighting modes (e.g. Tavern, Ocean, Hell) and activate one as the background layer.
-- **Config** — set the WLED device IP, total LED count, brightness, player segments, and corner preview positions.
+- **Config** — manage devices (WLED IPs or Home Assistant entity IDs), set LED counts, brightness, player segments, and corner preview positions. Add a Home Assistant URL and long-lived access token to enable HA lights.
 
-**Layer model** (highest wins):
+### Layer model (highest wins)
 
 | Layer | Source |
 |-------|--------|
@@ -128,6 +130,27 @@ Optional WLED LED strip integration for physical ambiance at the table. Configur
 | 1 — Player | Combat turn signal mapped by character name |
 | 0 — Ambient | Persistent background mode |
 | — | Neutral (dim blue-white) |
+
+### Device types
+
+| Type | Config needed |
+|------|--------------|
+| WLED | Device IP address |
+| Home Assistant | HA base URL + long-lived access token + `light.*` entity ID |
+
+---
+
+## Outgoing Webhooks
+
+The bridge can forward every incoming roll payload to one or more HTTP endpoints. Useful for Discord bots, n8n automations, or any custom integration.
+
+Manage webhook URLs via the dashboard (**Settings → Webhooks**) or the API:
+
+```
+GET    /api/webhooks          list registered URLs
+POST   /api/webhooks          add a URL  {"url": "https://..."}
+DELETE /api/webhooks/{index}  remove by index
+```
 
 ---
 
@@ -140,13 +163,43 @@ The Foundry module matches the character name from DDB against actor names in Fo
 ## File Structure
 
 ```
-bridge.py                  # Python FastAPI bridge server + DDB WebSocket client
-dancing_lights.py          # Dancing Lights logic, layer model, WLED API, routes
-logger.py                  # Shared log buffer and persistence
-Dockerfile                 # Docker image definition
-docker-compose.yml         # Docker Compose config
+bridge.py                  # App entry point: lifespan, middleware, router registration
+logger.py                  # Shared log buffer and file persistence
+settings.py                # ENV_PATH constant
+
+models/
+  config.py                # ConfigUpdate (Pydantic)
+  roll.py                  # RollSummary (Pydantic)
+  webhook.py               # WebhookAdd (Pydantic)
+
+services/
+  ddb_client.py            # DDB WebSocket client (connect, parse, reconnect)
+  roll_store.py            # roll_history deque + roll_index dict, load/save
+  webhook_service.py       # load/save/dispatch outgoing webhooks
+  foundry.py               # foundry_clients set, broadcast_to_foundry
+
+routes/
+  rolls.py                 # GET/DELETE /api/rolls, GET /api/rolls/{id}, POST resend
+  config.py                # GET /api/status, GET/POST /api/config, POST /api/restart
+  webhooks.py              # GET/POST /api/webhooks, DELETE /api/webhooks/{index}
+  character.py             # GET /api/character/{entity_id}
+  logs.py                  # GET /api/logs/stream, DELETE /api/logs
+  ws.py                    # WebSocket /ws (Foundry client handler)
+
+dancing_lights/
+  __init__.py              # Public re-exports
+  config.py                # dl_load/save, default event/ambient configs
+  devices.py               # WLED HTTP dispatch, Home Assistant REST dispatch
+  layers.py                # Layer state, dl_trigger, dl_auto_signal, dl_detect_event
+  routes.py                # FastAPI router — all /dl/ endpoints
+
+static/
+  app.css                  # Dashboard styles
+  app.js                   # Dashboard logic
+
 templates/
-  index.html               # Web dashboard UI
+  index.html               # Dashboard HTML shell
+
 data/
   logs.jsonl               # Persistent log history (auto-created, gitignored)
   rolls.json               # Persistent roll history (auto-created, gitignored)
@@ -156,6 +209,13 @@ modules/astral-bridge/
   module.json
   scripts/main.js          # Foundry module logic
   styles/astral-bridge.css
+
+tests/
+  conftest.py
+  test_dancing_lights.py
+  test_rolls.py
+  test_config.py
+  test_webhooks.py
 ```
 
 ---
